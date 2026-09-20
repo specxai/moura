@@ -67,6 +67,14 @@ Validation fails when derived canonical IDs are not unique.
 
 Validation fails when a Moura-managed Requirement, Scenario, or Case ID is present in a configured Markdown source but absent from the manifest.
 
+#### CASE-014 Parse project definitions safely and deterministically
+
+Manifest YAML and Markdown sources are interpreted without executable YAML
+features, with exact source identities and Markdown structure preserved.
+Malformed, ambiguous, unsafe, or independently invalid inputs produce stable,
+source-aware diagnostics; valid project-relative inputs produce the same
+hierarchy regardless of irrelevant document content.
+
 ## REQ-002
 
 ### SCN-001 Evaluate required Case × verification-layer evidence
@@ -124,3 +132,97 @@ contradiction that fails checking.
 The check CLI and Requirement Coverage report preserve every verification
 status and identify its success, warning, or error severity. Warning-only
 checks exit successfully; errors and evidence-validation issues do not.
+
+## REQ-003
+
+### SCN-001 Invoke Moura from the command line
+
+#### CASE-001 Route commands, directories, arguments, and process outcomes
+
+The CLI operates on the current directory or an explicitly selected project,
+lists its commands, preserves version behavior, rejects invalid commands and
+extra arguments, and returns a non-zero outcome for structural, Evidence, or
+filesystem failures.
+
+### SCN-002 Produce verification diagnostics and reports
+
+#### CASE-001 Diagnose project checks at the filesystem boundary
+
+Checking a project loads its configured Allure results, distinguishes missing
+Evidence from unavailable or malformed result storage, stops on invalid
+project structure, and renders semantic Evidence issues with their source and
+layer context.
+
+#### CASE-002 Calculate Requirement Coverage from descendant Evidence
+
+A Case is covered only when all of its required verification pairs pass; a
+Scenario or Requirement is covered only when all descendants are covered.
+
+#### CASE-003 Generate a deterministic and filesystem-safe coverage report
+
+Requirement Coverage output preserves hierarchy, identities, statuses,
+severities, gaps, and diagnostics with safe HTML escaping. Regeneration
+replaces stale, hard-linked, or symlinked output entries without modifying or
+deleting targets outside the generated report.
+
+## REQ-004
+
+### SCN-001 Read Moura Evidence from Allure results
+
+#### CASE-001 Reconstruct authoritative Case and layer tuples
+
+Moura reads supported Allure statuses and reconstructs ordered, de-duplicated
+canonical Case identities positionally from `moura_requirement`,
+`moura_scenario`, and `moura_case`, together with exactly one `moura_layer`.
+Malformed or ambiguous authoritative metadata yields deterministic issues;
+Behavior labels are ignored for reconstruction and results without Moura
+labels remain outside verification scope.
+
+#### CASE-002 Load result files deterministically
+
+Only Allure `*-result.json` files are loaded, in stable filename order, and
+malformed JSON is reported with its source filename.
+
+## REQ-005
+
+### SCN-001 Produce complete Moura dogfooding Evidence
+
+#### CASE-001 Emit canonical metadata for every Moura Vitest test
+
+The dedicated Moura Allure run gives every Vitest result at least one declared
+canonical Case and one required verification layer. It emits authoritative
+`moura_requirement`, `moura_scenario`, `moura_case`, and `moura_layer` labels;
+multi-Case results preserve every authoritative tuple while deterministically
+projecting the first tuple to Allure's Behavior hierarchy.
+
+#### CASE-002 Reject invalid or incomplete dogfooding metadata
+
+Moura's repository-level result audit rejects missing, malformed, ambiguous,
+unknown, or non-required Case × layer metadata in the dedicated dogfooding
+run, while the reusable validator continues to permit unrelated Allure results
+outside that repository invariant.
+
+### SCN-002 Verify and publish Moura quality results
+
+#### CASE-001 Verify the generated Allure hierarchy
+
+The generated Allure Behavior report contains a Requirement → Scenario → Case
+→ Test path for Moura tests and contains no root-level test caused by missing
+traceability metadata.
+
+#### CASE-002 Assemble the published quality site
+
+The quality site publishes Requirement Coverage, Allure, and code-coverage
+reports with stable destinations, repository identity, and commit identity.
+
+#### CASE-003 Summarize generated test results for CI
+
+CI summary generation counts only Allure result files by supported status and
+reports malformed files or unsupported statuses rather than silently
+misstating results.
+
+#### CASE-004 Execute quality pipeline commands without argument loss
+
+Quality-pipeline command execution preserves argument boundaries and captured
+output and reports both process failures and spawn failures with actionable
+context.

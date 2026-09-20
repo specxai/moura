@@ -2,10 +2,19 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it as vitestIt, vi } from "vitest";
 
 import { checkProjectDirectory } from "./check-command.js";
-import { mouraEvidenceName } from "./test-support/moura-evidence.js";
+import {
+  mouraEvidenceName,
+  mouraEvidenceTest,
+} from "./test-support/moura-evidence.js";
+
+const it = mouraEvidenceTest(
+  vitestIt,
+  ["REQ-003/SCN-002/CASE-001"],
+  "integration",
+);
 
 const directories: string[] = [];
 

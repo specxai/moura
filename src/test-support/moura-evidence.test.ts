@@ -1,6 +1,8 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it as vitestIt } from "vitest";
 
-import { mouraEvidenceName } from "./moura-evidence.js";
+import { mouraEvidenceName, mouraEvidenceTest } from "./moura-evidence.js";
+
+const it = mouraEvidenceTest(vitestIt, ["REQ-005/SCN-001/CASE-001"], "unit");
 
 const originalMetadata = process.env.MOURA_ALLURE_METADATA;
 

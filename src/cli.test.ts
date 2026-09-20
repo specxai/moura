@@ -1,7 +1,15 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it as vitestIt, vi } from "vitest";
+
+import { mouraEvidenceTest } from "./test-support/moura-evidence.js";
+
+const it = mouraEvidenceTest(
+  vitestIt,
+  ["REQ-003/SCN-001/CASE-001"],
+  "integration",
+);
 
 const validManifest = `
 version: 1

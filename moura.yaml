@@ -22,6 +22,7 @@ requirements:
           - { id: CASE-011, verify: [unit] }
           - { id: CASE-012, verify: [unit] }
           - { id: CASE-013, verify: [integration] }
+          - { id: CASE-014, verify: [unit] }
   - id: REQ-002
     scenarios:
       - id: SCN-001
@@ -37,3 +38,31 @@ requirements:
           - { id: CASE-009, verify: [unit] }
           - { id: CASE-010, verify: [unit] }
           - { id: CASE-011, verify: [integration] }
+  - id: REQ-003
+    scenarios:
+      - id: SCN-001
+        cases:
+          - { id: CASE-001, verify: [integration] }
+      - id: SCN-002
+        cases:
+          - { id: CASE-001, verify: [integration] }
+          - { id: CASE-002, verify: [unit] }
+          - { id: CASE-003, verify: [integration] }
+  - id: REQ-004
+    scenarios:
+      - id: SCN-001
+        cases:
+          - { id: CASE-001, verify: [unit] }
+          - { id: CASE-002, verify: [unit] }
+  - id: REQ-005
+    scenarios:
+      - id: SCN-001
+        cases:
+          - { id: CASE-001, verify: [unit] }
+          - { id: CASE-002, verify: [unit] }
+      - id: SCN-002
+        cases:
+          - { id: CASE-001, verify: [unit] }
+          - { id: CASE-002, verify: [integration] }
+          - { id: CASE-003, verify: [unit] }
+          - { id: CASE-004, verify: [unit] }

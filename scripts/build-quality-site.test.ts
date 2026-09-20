@@ -3,7 +3,15 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import process from "node:process";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it as vitestIt } from "vitest";
+
+import { mouraEvidenceTest } from "../src/test-support/moura-evidence.js";
+
+const it = mouraEvidenceTest(
+  vitestIt,
+  ["REQ-005/SCN-002/CASE-002"],
+  "integration",
+);
 
 describe("quality site assembly", () => {
   it("stages all reports and links Requirement Coverage first", async () => {

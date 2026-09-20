@@ -2,9 +2,16 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it as vitestIt } from "vitest";
+
+import {
+  mouraEvidenceName,
+  mouraEvidenceTest,
+} from "../test-support/moura-evidence.js";
 
 import { convertAllureResult, loadAllureResultsDirectory } from "./allure.js";
+
+const it = mouraEvidenceTest(vitestIt, ["REQ-004/SCN-001/CASE-001"], "unit");
 
 const temporaryDirectories: string[] = [];
 
@@ -245,35 +252,42 @@ describe("Allure evidence conversion", () => {
 });
 
 describe("Allure results directory loading", () => {
-  it("loads only sorted result files and reports malformed JSON deterministically", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "moura-allure-"));
-    temporaryDirectories.push(directory);
-    await Promise.all([
-      writeFile(join(directory, "z-result.json"), "not json"),
-      writeFile(
-        join(directory, "b-result.json"),
-        JSON.stringify(result("broken", [...hierarchyLabels(), layerLabel])),
-      ),
-      writeFile(
-        join(directory, "a-result.json"),
-        JSON.stringify(result("passed", [...hierarchyLabels(), layerLabel])),
-      ),
-      writeFile(join(directory, "ignored-container.json"), "not json"),
-      writeFile(join(directory, "categories.json"), "not json"),
-    ]);
+  it(
+    mouraEvidenceName(
+      "loads only sorted result files and reports malformed JSON deterministically",
+      ["REQ-004/SCN-001/CASE-002"],
+      "unit",
+    ),
+    async () => {
+      const directory = await mkdtemp(join(tmpdir(), "moura-allure-"));
+      temporaryDirectories.push(directory);
+      await Promise.all([
+        writeFile(join(directory, "z-result.json"), "not json"),
+        writeFile(
+          join(directory, "b-result.json"),
+          JSON.stringify(result("broken", [...hierarchyLabels(), layerLabel])),
+        ),
+        writeFile(
+          join(directory, "a-result.json"),
+          JSON.stringify(result("passed", [...hierarchyLabels(), layerLabel])),
+        ),
+        writeFile(join(directory, "ignored-container.json"), "not json"),
+        writeFile(join(directory, "categories.json"), "not json"),
+      ]);
 
-    const loaded = await loadAllureResultsDirectory(directory);
-    expect(
-      loaded.evidence.map(({ status, source }) => [status, source]),
-    ).toEqual([
-      ["passed", "a-result.json"],
-      ["broken", "b-result.json"],
-    ]);
-    expect(loaded.issues).toEqual([
-      expect.objectContaining({
-        code: "malformed-json",
-        source: "z-result.json",
-      }),
-    ]);
-  });
+      const loaded = await loadAllureResultsDirectory(directory);
+      expect(
+        loaded.evidence.map(({ status, source }) => [status, source]),
+      ).toEqual([
+        ["passed", "a-result.json"],
+        ["broken", "b-result.json"],
+      ]);
+      expect(loaded.issues).toEqual([
+        expect.objectContaining({
+          code: "malformed-json",
+          source: "z-result.json",
+        }),
+      ]);
+    },
+  );
 });

@@ -1,7 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it as vitestIt } from "vitest";
+
+import { mouraEvidenceTest } from "./test-support/moura-evidence.js";
 
 import { canonicalId, InvalidLocalIdError, localId } from "./id.js";
 import type { TraceNode } from "./model.js";
+
+const it = mouraEvidenceTest(vitestIt, ["REQ-001/SCN-001/CASE-008"], "unit");
 
 const requirement: TraceNode = { kind: "requirement", localId: "REQ-001" };
 const scenario: TraceNode = { kind: "scenario", localId: "SCN-001" };

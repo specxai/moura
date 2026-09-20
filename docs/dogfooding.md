@@ -1,71 +1,78 @@
 # Moura dogfooding evidence
 
-Moura's own test suite uses the same Case × verification-layer model that it
-offers to projects. The mapping is intentionally narrower than the test suite:
-an ordinary implementation test remains unlabelled unless its assertions
-actually verify a declared Case.
+Moura's complete Vitest suite dogfoods the same Case × verification-layer model
+that it offers to projects. Every test in the dedicated Allure run must resolve
+through a declared canonical Case to a Scenario and Requirement. This is a
+repository invariant, not a general rule that rejects unrelated results in a
+user's Allure directory.
 
 ## Mapping rules
 
 - Pass canonical Case IDs such as `REQ-002/SCN-001/CASE-002` to
   `mouraEvidenceName()`; do not pass separate or abbreviated IDs.
 - Use the layer where the assertion runs. Tests of a pure function or in-memory
-  project model are `unit`; tests that cross the filesystem command/project
+  project model are `unit`; tests that cross a filesystem command/project
   boundary are `integration`.
+- Multiple tests should support one Case when they are independent examples of
+  the same guarantee. Do not create a Case for each implementation test.
 - Multiple Cases may share one result only when every mapped Case is genuinely
-  asserted by that test. For example, one aggregation example can demonstrate
-  both a status rule and the general multi-record precedence rule.
-- Do not add a nearby Case merely to make coverage pass. If no suitable test
-  exists, leave the required pair `MISSING` until a test can be justified from
-  the specification.
-- Keep unrelated regression, parser-detail, CLI-presentation, and hardening
-  tests unlabelled. They still run and appear in Allure, but are not claimed as
-  specification evidence.
+  asserted by that test.
+- Each test file declares a reviewed default with `mouraEvidenceTest()`. A more
+  specific `mouraEvidenceName()` mapping takes precedence. The wrapper also
+  covers parameterized tests returned by `it.each()` so newly added tests do
+  not silently appear without repository metadata.
+- A helper test is mapped to the project-level guarantee it supports, not to a
+  manufactured requirement about the helper implementation.
 
-`pnpm test:allure` checks the generated result JSON, not just the test source.
-It rejects malformed or undeclared mappings, but does not implement project
-coverage policy. After it runs, `node dist/cli.js check .` consumes those same
-files through Moura's production Allure adapter and core verification path. The
-self-check is responsible for reporting absent required pairs as `MISSING` and
-returning a non-zero exit code. `pnpm report:moura` uses that same path to render
-coverage.
+## Reviewed suite mapping
 
-## Current mapping
+The full-suite reverse audit groups Evidence by the behavior under test:
 
-The following is the reviewed mapping for the current specification. Test names
-are stable human-readable names; parameterized aggregation rows are described
-as a group.
+| Test suite                                | Default guarantee                               | Layer       |
+| ----------------------------------------- | ----------------------------------------------- | ----------- |
+| `src/project.test.ts`                     | safe, deterministic project-definition parsing  | unit        |
+| `src/id.test.ts`                          | valid local and canonical identities            | unit        |
+| `src/check.test.ts`                       | deterministic Evidence aggregation              | unit        |
+| `src/check-command.test.ts`               | filesystem-boundary check diagnostics           | integration |
+| `src/cli.test.ts`                         | CLI routing, arguments, and outcomes            | integration |
+| `src/coverage.test.ts`                    | descendant Requirement Coverage roll-up         | unit        |
+| `src/report.test.ts`                      | deterministic, filesystem-safe coverage reports | integration |
+| `src/adapters/allure.test.ts`             | authoritative Allure Evidence ingestion         | unit        |
+| `src/test-support/moura-evidence.test.ts` | canonical dogfooding metadata emission          | unit        |
+| `scripts/verify-allure-results.test.ts`   | dogfooding result-metadata audit                | unit        |
+| `scripts/verify-allure-report.test.ts`    | generated Behavior hierarchy audit              | unit        |
+| `scripts/build-quality-site.test.ts`      | published quality-site assembly                 | integration |
+| `scripts/ci-summary.test.ts`              | CI Allure result summary                        | unit        |
+| `scripts/run-command.test.ts`             | quality-pipeline command execution              | unit        |
 
-| Case                                                          | Layer       | Test evidence                                                                                                               |
-| ------------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `REQ-001/SCN-001/CASE-001`                                    | unit        | `accepts a valid manifest`                                                                                                  |
-| `REQ-001/SCN-001/CASE-001`                                    | integration | `returns the validated manifest from the canonical filesystem boundary`                                                     |
-| `REQ-001/SCN-001/CASE-002`                                    | unit        | `rejects a missing or unsupported version`                                                                                  |
-| `REQ-001/SCN-001/CASE-003`                                    | integration | `reports configured source files that cannot be read`                                                                       |
-| `REQ-001/SCN-001/CASE-004`                                    | integration | `rejects invalid hierarchy and unmanaged IDs through the filesystem boundary`                                               |
-| `REQ-001/SCN-001/CASE-005` through `CASE-007`, and `CASE-012` | unit        | `reports duplicate Requirements, Scenarios, and Cases`                                                                      |
-| `REQ-001/SCN-001/CASE-008`                                    | unit        | local-ID rejection and printable/supplementary Unicode acceptance tests                                                     |
-| `REQ-001/SCN-001/CASE-009` and `CASE-010`                     | unit        | `reports missing Scenario, Case, and verify lists`                                                                          |
-| `REQ-001/SCN-001/CASE-011`                                    | unit        | unknown/duplicate layer, unsafe layer, and Unicode acceptance tests                                                         |
-| `REQ-001/SCN-001/CASE-013`                                    | integration | `rejects invalid hierarchy and unmanaged IDs through the filesystem boundary`                                               |
-| `REQ-002/SCN-001/CASE-001` through `CASE-005`, and `CASE-008` | unit        | the applicable `aggregates ... evidence as ...` rows; Case 5 also maps ordering, independent-pair, and manifest-order tests |
-| `REQ-002/SCN-001/CASE-005`                                    | integration | `aggregates multiple records and layers through the filesystem command`                                                     |
-| `REQ-002/SCN-001/CASE-006`                                    | unit        | unknown ID, non-Case target, and empty-target tests                                                                         |
-| `REQ-002/SCN-001/CASE-007`                                    | unit        | undeclared-layer and non-required-pair tests                                                                                |
-| `REQ-002/SCN-001/CASE-009` and `CASE-010`                     | unit        | warning-severity, explicit-unimplemented, and contradiction tests                                                           |
-| `REQ-002/SCN-001/CASE-011`                                    | integration | CLI explicit-UNIMPLEMENTED warning and exit-code test                                                                       |
+Focused tests in the project, check, check-command, and Allure adapter suites
+retain explicit mappings to the narrower existing Cases they directly prove.
+Thus the default is not an escape hatch or a title allowlist: it is Evidence for
+a documented suite-level guarantee, overridden where a more precise contract
+applies.
 
-There are currently no declared Case × layer pairs intentionally left without
-evidence. This statement is enforced by running `node dist/cli.js check .`
-against generated Allure results; it must not be preserved by weakening a
-mapping when the specification or tests change. Moura deliberately has no
-dogfooding-only completeness checker parallel to its core verification
-semantics.
+## Repository self-audit
 
-Moura's `moura_*` labels remain the authoritative machine-readable evidence
-contract. Dogfooding results additionally project Requirement, Scenario, and
-Case to Allure's standard `epic`, `feature`, and `story` labels for presentation.
-The generated-result check fixes both projections for a representative
-single-case result. For multi-case results, Allure 3.17.0 cannot retain tuple
-associations across repeated Behavior labels, so only the first declared Case
-is projected; all Cases remain present in the ordered authoritative labels.
+`pnpm test:allure` deletes and regenerates `allure-results`, validates every
+mapping against `moura.yaml`, and then rejects any generated Vitest result that
+has no authoritative Moura Evidence metadata. The reusable validation function
+continues to accept ordinary results without Moura labels; strictness applies
+only through the repository's dedicated dogfooding check.
+
+After the result audit, `node dist/cli.js check .` consumes those same files
+through Moura's production Allure adapter and core verification path. It
+remains responsible for completeness and the existing `PASS`, `SKIPPED`,
+`UNIMPLEMENTED`, `MISSING`, `FAIL`, and `BROKEN` status/severity semantics.
+
+`pnpm report:allure` generates a report from the dedicated `allure-results`
+directory only. Its verifier walks the complete Behavior tree, requires every
+expected test leaf at exactly Requirement → Scenario → Case → Test depth, and
+rejects root-level or partially grouped test leaves. This complements the
+result audit by checking presentation rather than treating Behavior labels as
+Evidence authority.
+
+Moura's `moura_requirement`, `moura_scenario`, `moura_case`, and `moura_layer`
+labels remain the authoritative machine-readable contract. Allure `epic`,
+`feature`, and `story` labels are presentation only. For a multi-Case result,
+all authoritative tuples remain ordered while the first declared Case is
+projected deterministically into the Behavior hierarchy.

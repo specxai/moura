@@ -1,9 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it as vitestIt } from "vitest";
 
 import { checkVerification } from "./check.js";
 import { parseManifest, type MouraManifest } from "./manifest.js";
 import type { Evidence } from "./model.js";
-import { mouraEvidenceName } from "./test-support/moura-evidence.js";
+import {
+  mouraEvidenceName,
+  mouraEvidenceTest,
+} from "./test-support/moura-evidence.js";
+
+const it = mouraEvidenceTest(vitestIt, ["REQ-002/SCN-001/CASE-005"], "unit");
 
 const caseId = "requirement/scenario/case";
 

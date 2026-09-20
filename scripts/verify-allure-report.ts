@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 
 interface AllureTreeNode {
   readonly name?: unknown;
@@ -42,6 +42,43 @@ export function verifyBehaviorTree(
     );
 }
 
+export function verifyCompleteBehaviorTree(
+  value: unknown,
+  expectedTests: number,
+): void {
+  if (!isRecord(value)) throw new Error("Allure tree must be an object");
+  const root = value.root;
+  const groups = value.groupsById;
+  const leaves = value.leavesById;
+  if (!isTreeNode(root) || !isRecord(groups) || !isRecord(leaves))
+    throw new Error("Allure tree has an invalid structure");
+
+  const foundLeaves = new Set<string>();
+  const visit = (node: AllureTreeNode, depth: number): void => {
+    const directLeaves = nodeIds(node.leaves);
+    if (directLeaves.length > 0 && depth !== 3)
+      throw new Error(
+        `Allure Behavior tree contains ${directLeaves.length} test(s) at hierarchy depth ${depth}`,
+      );
+    for (const id of directLeaves) {
+      if (!isTreeNode(leaves[id]))
+        throw new Error(`Allure Behavior tree references unknown test ${id}`);
+      foundLeaves.add(id);
+    }
+    for (const id of nodeIds(node.groups)) {
+      const child = groups[id];
+      if (!isTreeNode(child))
+        throw new Error(`Allure Behavior tree references unknown group ${id}`);
+      visit(child, depth + 1);
+    }
+  };
+  visit(root, 0);
+  if (foundLeaves.size !== expectedTests)
+    throw new Error(
+      `Allure Behavior tree contains ${foundLeaves.size} traced tests; expected ${expectedTests}`,
+    );
+}
+
 function nodeIds(value: unknown): readonly string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string")
     ? value
@@ -65,5 +102,11 @@ if (process.argv[1]?.endsWith("verify-allure-report.ts")) {
     ["REQ-002", "SCN-001", "CASE-002"],
     "aggregates an empty set of evidence as MISSING",
   );
-  console.log("Verified Requirement → Scenario → Case Allure report tree.");
+  const expectedTests = readdirSync("allure-results").filter((file) =>
+    file.endsWith("-result.json"),
+  ).length;
+  verifyCompleteBehaviorTree(tree, expectedTests);
+  console.log(
+    `Verified Requirement → Scenario → Case → Test paths for ${expectedTests} Allure results with no unmapped root tests.`,
+  );
 }

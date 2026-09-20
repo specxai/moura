@@ -1,6 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it as vitestIt } from "vitest";
 
-import { verifyBehaviorTree } from "./verify-allure-report.js";
+import { mouraEvidenceTest } from "../src/test-support/moura-evidence.js";
+
+import {
+  verifyBehaviorTree,
+  verifyCompleteBehaviorTree,
+} from "./verify-allure-report.js";
+
+const it = mouraEvidenceTest(vitestIt, ["REQ-005/SCN-002/CASE-001"], "unit");
 
 const tree = {
   root: { groups: ["requirement"] },
@@ -43,5 +50,21 @@ describe("Allure Behavior report verification", () => {
         "another test",
       ),
     ).toThrow('missing test "another test"');
+  });
+
+  it("accepts only tests nested below all three Behavior levels", () => {
+    expect(() => verifyCompleteBehaviorTree(tree, 1)).not.toThrow();
+  });
+
+  it("rejects an unmapped root-level test", () => {
+    expect(() =>
+      verifyCompleteBehaviorTree(
+        {
+          ...tree,
+          root: { ...tree.root, leaves: ["test"] },
+        },
+        1,
+      ),
+    ).toThrow("1 test(s) at hierarchy depth 0");
   });
 });

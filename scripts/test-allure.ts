@@ -9,6 +9,7 @@ import { parseManifest } from "../src/manifest.js";
 
 import {
   parseAllureResult,
+  validateCompleteMouraDogfoodResults,
   validateMouraEvidenceResults,
   verifyRepresentativeResult,
 } from "./verify-allure-results.js";
@@ -71,6 +72,7 @@ const results = readdirSync(resultsDirectory)
   });
 
 validateMouraEvidenceResults(results, verificationLayersByCase, layers);
+validateCompleteMouraDogfoodResults(results);
 verifyRepresentativeResult(
   results,
   "aggregates an empty set of evidence as MISSING",
@@ -84,4 +86,6 @@ verifyRepresentativeResult(
   "unit",
 );
 
-console.log("Verified Moura labels in generated Allure result JSON.");
+console.log(
+  `Verified complete Moura metadata for ${results.length} generated Allure results.`,
+);

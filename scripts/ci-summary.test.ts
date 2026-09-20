@@ -1,9 +1,13 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it as vitestIt } from "vitest";
+
+import { mouraEvidenceTest } from "../src/test-support/moura-evidence.js";
 
 import { readAllureCounts } from "./ci-summary.js";
+
+const it = mouraEvidenceTest(vitestIt, ["REQ-005/SCN-002/CASE-003"], "unit");
 
 describe("CI summary Allure counts", () => {
   it("counts only Allure test result files by status", async () => {

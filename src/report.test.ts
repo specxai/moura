@@ -10,11 +10,19 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it as vitestIt } from "vitest";
+
+import { mouraEvidenceTest } from "./test-support/moura-evidence.js";
 
 import { checkVerification } from "./check.js";
 import { parseManifest } from "./manifest.js";
 import { renderCoverageReport, reportProjectDirectory } from "./report.js";
+
+const it = mouraEvidenceTest(
+  vitestIt,
+  ["REQ-003/SCN-002/CASE-003"],
+  "integration",
+);
 
 const directories: string[] = [];
 afterEach(async () =>

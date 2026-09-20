@@ -1,17 +1,22 @@
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it as vitestIt } from "vitest";
 
 import { parseManifest } from "./manifest.js";
 import { parseSpecificationMarkdown } from "./markdown.js";
-import { mouraEvidenceName } from "./test-support/moura-evidence.js";
+import {
+  mouraEvidenceName,
+  mouraEvidenceTest,
+} from "./test-support/moura-evidence.js";
 import {
   isValidProjectRelativeSourcePath,
   loadProjectDirectory,
   validateProject,
   validateProjectDirectory,
 } from "./project.js";
+
+const it = mouraEvidenceTest(vitestIt, ["REQ-001/SCN-001/CASE-014"], "unit");
 
 const validManifest = `
 version: 1

@@ -84,6 +84,20 @@ export function validateMouraEvidenceResults(
   }
 }
 
+/** Repository-only invariant for Moura's dedicated dogfooding run. */
+export function validateCompleteMouraDogfoodResults(
+  results: readonly AllureResult[],
+): void {
+  for (const result of results) {
+    const resultName = JSON.stringify(result.name ?? "unnamed result");
+    const converted = convertAllureResult(result, resultName);
+    if (converted.issues.length > 0)
+      throw new Error(converted.issues[0]!.message);
+    if (converted.evidence.length === 0)
+      throw new Error(`${resultName} has no Moura Evidence metadata`);
+  }
+}
+
 export function verifyRepresentativeResult(
   results: readonly AllureResult[],
   name: string,

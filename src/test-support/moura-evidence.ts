@@ -40,3 +40,39 @@ export function mouraEvidenceName(
     ...behaviorLabels,
   ].join(" ");
 }
+
+/**
+ * Applies a reviewed default Evidence mapping to every otherwise-unmapped test
+ * declared through a Vitest Test API. Explicit `mouraEvidenceName()` mappings
+ * take precedence, which lets focused tests cover a more specific Case (or
+ * multiple Cases) than the suite default.
+ *
+ * The proxy also follows APIs returned by modifiers such as `each`, so the
+ * repository cannot accidentally omit parameterized tests from its dedicated
+ * dogfooding run.
+ */
+export function mouraEvidenceTest<T extends object>(
+  testApi: T,
+  cases: readonly string[],
+  layer: string,
+): T {
+  const wrap = (value: unknown): unknown => {
+    if (typeof value !== "function") return value;
+    return new Proxy(value, {
+      apply(target, thisArgument, argumentsList) {
+        const args = [...argumentsList];
+        if (
+          typeof args[0] === "string" &&
+          !args[0].includes("@allure.label.moura_case:")
+        )
+          args[0] = mouraEvidenceName(args[0], cases, layer);
+        return wrap(Reflect.apply(target, thisArgument, args));
+      },
+      get(target, property, receiver) {
+        return wrap(Reflect.get(target, property, receiver));
+      },
+    });
+  };
+
+  return wrap(testApi) as T;
+}

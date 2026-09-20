@@ -1,9 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it as vitestIt } from "vitest";
+
+import { mouraEvidenceTest } from "../src/test-support/moura-evidence.js";
 
 import {
   type AllureLabel,
+  validateCompleteMouraDogfoodResults,
   validateMouraEvidenceResults,
 } from "./verify-allure-results.js";
+
+const it = mouraEvidenceTest(vitestIt, ["REQ-005/SCN-001/CASE-002"], "unit");
 
 const caseLayers = new Map([
   ["REQ-001/SCN-001/CASE-001", new Set(["unit", "integration"])],
@@ -116,5 +121,24 @@ describe("Allure Moura evidence metadata verification", () => {
         knownLayers,
       ),
     ).toThrow(message);
+  });
+});
+
+describe("complete Moura dogfooding metadata verification", () => {
+  it("accepts a result with a complete authoritative mapping", () => {
+    expect(() =>
+      validateCompleteMouraDogfoodResults([
+        result(...hierarchyLabels("REQ-001/SCN-001/CASE-001"), {
+          name: "moura_layer",
+          value: "unit",
+        }),
+      ]),
+    ).not.toThrow();
+  });
+
+  it("rejects an unmapped result in Moura's dedicated run", () => {
+    expect(() => validateCompleteMouraDogfoodResults([result()])).toThrow(
+      '"evidence result" has no Moura Evidence metadata',
+    );
   });
 });

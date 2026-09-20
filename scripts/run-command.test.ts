@@ -1,8 +1,12 @@
 import process from "node:process";
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it as vitestIt, vi } from "vitest";
+
+import { mouraEvidenceTest } from "../src/test-support/moura-evidence.js";
 
 import { runCommand } from "./run-command.js";
+
+const it = mouraEvidenceTest(vitestIt, ["REQ-005/SCN-002/CASE-004"], "unit");
 
 describe("runCommand", () => {
   it("returns captured stdout and stderr on success", () => {

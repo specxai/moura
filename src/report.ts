@@ -12,7 +12,8 @@ import {
   evaluateProjectDirectory,
   formatEvidenceAdapterIssue,
   formatEvidenceIssue,
-  type CheckCommandDependencies,
+  formatTraceabilityDiagnostic,
+  type CheckCommandOptions,
 } from "./check-command.js";
 import {
   summarizeCoverage,
@@ -31,9 +32,9 @@ export interface ReportCommandOutput {
 
 export async function reportProjectDirectory(
   directory: string,
-  dependencies: CheckCommandDependencies = {},
+  options: CheckCommandOptions = {},
 ): Promise<ReportCommandOutput> {
-  const evaluation = await evaluateProjectDirectory(directory, dependencies);
+  const evaluation = await evaluateProjectDirectory(directory, options);
   if (evaluation.kind === "invalid-project")
     return { exitCode: 1, errors: evaluation.errors };
   let outputPath: string;
@@ -44,6 +45,7 @@ export async function reportProjectDirectory(
         evaluation.manifest,
         evaluation.check,
         evaluation.adapterIssues,
+        evaluation.traceabilityDiagnostics,
       ),
     );
   } catch (error) {
@@ -59,13 +61,19 @@ export async function reportProjectDirectory(
   return {
     exitCode:
       evaluation.adapterIssues.length === 0 &&
-      evaluation.check.evidenceIssues.length === 0
+      evaluation.check.evidenceIssues.length === 0 &&
+      evaluation.traceabilityDiagnostics.every(
+        (diagnostic) => diagnostic.severity !== "error",
+      )
         ? 0
         : 1,
     outputPath,
     errors: [
       ...evaluation.adapterIssues.map(formatEvidenceAdapterIssue),
       ...semanticErrors,
+      ...evaluation.traceabilityDiagnostics
+        .filter((diagnostic) => diagnostic.severity === "error")
+        .map(formatTraceabilityDiagnostic),
     ],
   };
 }
@@ -91,6 +99,7 @@ export function renderCoverageReport(
   manifest: MouraManifest,
   check: VerificationProjectCheckResult,
   adapterIssues: readonly EvidenceAdapterIssue[] = [],
+  traceabilityDiagnostics: readonly import("./check-command.js").TraceabilityDiagnostic[] = [],
 ): string {
   const summary = summarizeCoverage(manifest, check);
   const entries = new Map<
@@ -154,6 +163,10 @@ export function renderCoverageReport(
     ...adapterIssues.map(formatEvidenceAdapterIssue),
     ...check.evidenceIssues.map(formatEvidenceIssue),
   ];
+  const traceabilityHtml =
+    traceabilityDiagnostics.length === 0
+      ? "<p>None.</p>"
+      : `<ul>${traceabilityDiagnostics.map((diagnostic) => `<li class="${diagnostic.severity}">${renderText(formatTraceabilityDiagnostic(diagnostic))}</li>`).join("")}</ul>`;
   const issueHtml =
     issues.length === 0
       ? "<p>None.</p>"
@@ -163,7 +176,7 @@ export function renderCoverageReport(
 <style>body{font:16px system-ui,sans-serif;line-height:1.5;max-width:72rem;margin:auto;padding:2rem;color:#172033}h1,h2,h3,h4{line-height:1.2}.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:1rem}.metric,.case{border:1px solid #ccd3df;border-radius:.5rem;padding:1rem}.metric span{display:block;font-size:1.4rem}.status{font-weight:700}.pass,.success{color:#167044}.fail,.broken,.missing,.error{color:#b42318}.skipped,.unimplemented,.warning{color:#854d0e}.severity{font-size:.8em;text-transform:uppercase}table{border-collapse:collapse}th,td{border:1px solid #ccd3df;padding:.5rem;text-align:left}code{font-size:.9em}</style></head>
 <body><main><h1>Moura Requirement Coverage</h1><p>Coverage of declared traceability and evidence. Moura does not prove that a test semantically verifies the specification it declares.</p>
 <div class="metrics">${cards}</div><h2>Pair statuses</h2><ul>${statusCounts}</ul><h2>Per-layer coverage</h2><table><thead><tr><th>Layer</th><th>PASS / required</th></tr></thead><tbody>${layers}</tbody></table>
-<h2>Requirement hierarchy and exact verification gaps</h2>${hierarchy}<h2>Evidence issues</h2>${issueHtml}</main></body></html>\n`;
+<h2>Requirement hierarchy and exact verification gaps</h2>${hierarchy}<h2>Reverse traceability diagnostics</h2>${traceabilityHtml}<h2>Evidence issues</h2>${issueHtml}</main></body></html>\n`;
 }
 
 function count(value: CoverageCount): string {

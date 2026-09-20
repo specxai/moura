@@ -168,7 +168,38 @@ describe("CLI", () => {
   it("rejects extra check arguments", async () => {
     const result = await run(["check", "a", "b"], process.cwd());
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("Usage: moura check [directory]");
+    expect(result.stderr).toContain(
+      "Usage: moura check [directory] [--strict-traceability]",
+    );
+  });
+
+  it("renders UNMAPPED as a warning by default and an error in strict mode", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "moura-cli-test-"));
+    try {
+      await writeValidProject(directory);
+      await writeEvidence(directory);
+      await writeFile(
+        join(directory, "allure-results", "unmapped-result.json"),
+        JSON.stringify({
+          name: "unmapped CLI test",
+          status: "passed",
+          labels: [{ name: "moura_traceability", value: "managed" }],
+        }),
+      );
+
+      const normal = await run(["check"], directory);
+      expect(normal.status).toBe(0);
+      expect(normal.stderr).toContain("WARNING UNMAPPED unmapped CLI test");
+
+      const strict = await run(
+        ["check", ".", "--strict-traceability"],
+        directory,
+      );
+      expect(strict.status).toBe(1);
+      expect(strict.stderr).toContain("ERROR UNMAPPED unmapped CLI test");
+    } finally {
+      await rm(directory, { recursive: true });
+    }
   });
 
   it("generates a requirement coverage report for an explicit project", async () => {

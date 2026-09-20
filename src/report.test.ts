@@ -150,6 +150,34 @@ requirements:
     expect(html).toContain("unknown-evidence-id: unknown [integration]:");
   });
 
+  it("renders reverse traceability diagnostics separately from pair coverage", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "moura-report-test-"));
+    directories.push(directory);
+    await writeProject(directory);
+    await writeFile(
+      join(directory, "allure-results", "unmapped-result.json"),
+      JSON.stringify({
+        name: "unmapped report test",
+        labels: [{ name: "moura_traceability", value: "managed" }],
+      }),
+    );
+
+    const result = await reportProjectDirectory(directory);
+    expect(result.exitCode).toBe(0);
+    const html = await readFile(result.outputPath!, "utf8");
+    expect(html).toContain("Reverse traceability diagnostics");
+    expect(html).toContain("WARNING UNMAPPED unmapped report test");
+    expect(html).toContain("Required Case × layer pairs");
+
+    const strict = await reportProjectDirectory(directory, {
+      strictTraceability: true,
+    });
+    expect(strict.exitCode).toBe(1);
+    expect(strict.errors).toContainEqual(
+      expect.stringContaining("ERROR UNMAPPED unmapped report test"),
+    );
+  });
+
   it("identifies adapter issue sources in command and escaped HTML diagnostics", async () => {
     const directory = await mkdtemp(join(tmpdir(), "moura-report-test-"));
     directories.push(directory);

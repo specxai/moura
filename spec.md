@@ -132,6 +132,9 @@ contradiction that fails checking.
 The check CLI and Requirement Coverage report preserve every verification
 status and identify its success, warning, or error severity. Warning-only
 checks exit successfully; errors and evidence-validation issues do not.
+Reverse-traceability `UNMAPPED` diagnostics remain separate from pair statuses
+and coverage: they warn by default and become errors only when strict
+traceability is requested.
 
 ## REQ-003
 
@@ -176,7 +179,9 @@ canonical Case identities positionally from `moura_requirement`,
 `moura_scenario`, and `moura_case`, together with exactly one `moura_layer`.
 Malformed or ambiguous authoritative metadata yields deterministic issues;
 Behavior labels are ignored for reconstruction and results without Moura
-labels remain outside verification scope.
+labels remain outside verification scope unless explicitly marked with
+`moura_traceability=managed`. A marked result without authoritative mapping is
+reported as `UNMAPPED`; partial authoritative metadata remains invalid Evidence.
 
 #### CASE-002 Load result files deterministically
 

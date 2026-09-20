@@ -53,16 +53,24 @@ applies.
 
 ## Repository self-audit
 
-`pnpm test:allure` deletes and regenerates `allure-results`, validates every
-mapping against `moura.yaml`, and then rejects any generated Vitest result that
-has no authoritative Moura Evidence metadata. The reusable validation function
-continues to accept ordinary results without Moura labels; strictness applies
-only through the repository's dedicated dogfooding check.
+`pnpm test:allure` deletes and regenerates `allure-results`. The test helper
+marks each result with `moura_traceability=managed`, validates every mapping
+against `moura.yaml`, and then rejects any generated Vitest result that has no
+authoritative Moura Evidence metadata. This repository-only audit remains an
+early, focused check of generated metadata and manifest mappings.
 
 After the result audit, `node dist/cli.js check .` consumes those same files
 through Moura's production Allure adapter and core verification path. It
 remains responsible for completeness and the existing `PASS`, `SKIPPED`,
 `UNIMPLEMENTED`, `MISSING`, `FAIL`, and `BROKEN` status/severity semantics.
+
+CI invokes that production path as `node dist/cli.js check .
+--strict-traceability`, so a future managed result that loses its Case mapping
+also fails as an `UNMAPPED` error. The two checks keep distinct responsibilities:
+the repository audit validates generated dogfooding metadata immediately,
+whereas strict checking exercises the public adapter, shared evaluation,
+diagnostic rendering, and exit behavior. Ordinary unmarked results in a user's
+mixed Allure directory remain out of scope.
 
 `pnpm report:allure` generates a report from the dedicated `allure-results`
 directory only. Its verifier walks the complete Behavior tree, requires every

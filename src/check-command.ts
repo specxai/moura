@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import {
   loadAllureResultsDirectory,
   type EvidenceAdapterResult,
+  type UnmappedResult,
 } from "./adapters/allure.js";
 import { checkVerification } from "./check.js";
 import type { EvidenceIssue, VerificationProjectCheckResult } from "./check.js";
@@ -19,6 +20,16 @@ export interface CheckCommandDependencies {
   readonly loadEvidence?: (directory: string) => Promise<EvidenceAdapterResult>;
 }
 
+export interface CheckCommandOptions extends CheckCommandDependencies {
+  readonly strictTraceability?: boolean;
+}
+
+export interface TraceabilityDiagnostic extends UnmappedResult {
+  readonly code: "UNMAPPED";
+  readonly severity: "warning" | "error";
+  readonly message: string;
+}
+
 export function formatEvidenceAdapterIssue(
   issue: EvidenceAdapterResult["issues"][number],
 ): string {
@@ -31,6 +42,15 @@ export function formatEvidenceIssue(issue: EvidenceIssue): string {
   return `${issue.code}: ${target} [${issue.layer}]: ${issue.message}`;
 }
 
+export function formatTraceabilityDiagnostic(
+  diagnostic: TraceabilityDiagnostic,
+): string {
+  const location = diagnostic.source
+    ? `${diagnostic.name} (${diagnostic.source})`
+    : diagnostic.name;
+  return `${diagnostic.severity.toUpperCase()} ${diagnostic.code} ${location}: ${diagnostic.message}`;
+}
+
 export type ProjectCheckEvaluation =
   | {
       readonly kind: "invalid-project";
@@ -41,12 +61,13 @@ export type ProjectCheckEvaluation =
       readonly manifest: MouraManifest;
       readonly check: VerificationProjectCheckResult;
       readonly adapterIssues: EvidenceAdapterResult["issues"];
+      readonly traceabilityDiagnostics: readonly TraceabilityDiagnostic[];
     };
 
 /** Shared filesystem evaluation used by both human CLI and artifact renderers. */
 export async function evaluateProjectDirectory(
   directory: string,
-  dependencies: CheckCommandDependencies = {},
+  options: CheckCommandOptions = {},
 ): Promise<ProjectCheckEvaluation> {
   const project = await loadProjectDirectory(directory);
   if (!project.manifest)
@@ -55,22 +76,31 @@ export async function evaluateProjectDirectory(
       errors: project.errors.map((problem) => problem.message),
     };
 
-  const loadEvidence = dependencies.loadEvidence ?? loadAllureResultsDirectory;
+  const loadEvidence = options.loadEvidence ?? loadAllureResultsDirectory;
   const adapted = await loadEvidence(resolve(directory, "allure-results"));
+  const traceabilityDiagnostics = (adapted.unmapped ?? []).map((result) => ({
+    ...result,
+    code: "UNMAPPED" as const,
+    severity: options.strictTraceability
+      ? ("error" as const)
+      : ("warning" as const),
+    message: "No Moura Case is associated with this test result.",
+  }));
   return {
     kind: "checked",
     manifest: project.manifest,
     check: checkVerification(project.manifest, adapted.evidence),
     adapterIssues: adapted.issues,
+    traceabilityDiagnostics,
   };
 }
 
 /** Filesystem command boundary; the check core remains adapter-neutral and pure. */
 export async function checkProjectDirectory(
   directory: string,
-  dependencies: CheckCommandDependencies = {},
+  options: CheckCommandOptions = {},
 ): Promise<CheckCommandOutput> {
-  const evaluation = await evaluateProjectDirectory(directory, dependencies);
+  const evaluation = await evaluateProjectDirectory(directory, options);
   if (evaluation.kind === "invalid-project") {
     return {
       exitCode: 1,
@@ -89,6 +119,8 @@ export async function checkProjectDirectory(
       `${entry.status} ${entry.caseId} [${entry.layer}] (${entry.severity})`,
   );
   const stderr: string[] = [];
+  for (const diagnostic of evaluation.traceabilityDiagnostics)
+    stderr.push(formatTraceabilityDiagnostic(diagnostic));
   if (adapted.issues.length > 0) {
     stderr.push("✗ Evidence adapter issues");
     for (const issue of adapted.issues) {
@@ -103,7 +135,14 @@ export async function checkProjectDirectory(
   }
 
   return {
-    exitCode: adapted.issues.length === 0 && checked.passed ? 0 : 1,
+    exitCode:
+      adapted.issues.length === 0 &&
+      checked.passed &&
+      evaluation.traceabilityDiagnostics.every(
+        (diagnostic) => diagnostic.severity !== "error",
+      )
+        ? 0
+        : 1,
     stdout,
     stderr,
   };

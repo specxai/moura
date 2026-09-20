@@ -214,6 +214,66 @@ requirements:
     );
   });
 
+  it("warns for managed unmapped results without failing otherwise passing checks", async () => {
+    const directory = await project();
+    const results = join(directory, "allure-results");
+    await mkdir(results);
+    await Promise.all([
+      writeFile(
+        join(results, "mapped-result.json"),
+        JSON.stringify(allure("passed")),
+      ),
+      writeFile(
+        join(results, "unmapped-result.json"),
+        JSON.stringify({
+          name: "unmapped test",
+          status: "passed",
+          labels: [{ name: "moura_traceability", value: "managed" }],
+        }),
+      ),
+      writeFile(
+        join(results, "unrelated-result.json"),
+        JSON.stringify({
+          name: "unrelated test",
+          status: "passed",
+          labels: [],
+        }),
+      ),
+    ]);
+
+    const result = await checkProjectDirectory(directory);
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toContain(
+      "WARNING UNMAPPED unmapped test (unmapped-result.json): No Moura Case is associated with this test result.",
+    );
+    expect(result.stderr.join("\n")).not.toContain("unrelated test");
+  });
+
+  it("promotes managed unmapped results to errors in strict mode", async () => {
+    const directory = await project();
+    const results = join(directory, "allure-results");
+    await mkdir(results);
+    await Promise.all([
+      writeFile(
+        join(results, "mapped-result.json"),
+        JSON.stringify(allure("passed")),
+      ),
+      writeFile(
+        join(results, "unmapped-result.json"),
+        JSON.stringify({
+          name: "unmapped test",
+          labels: [{ name: "moura_traceability", value: "managed" }],
+        }),
+      ),
+    ]);
+
+    const result = await checkProjectDirectory(directory, {
+      strictTraceability: true,
+    });
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr[0]).toMatch(/^ERROR UNMAPPED unmapped test/u);
+  });
+
   it("stops before evidence loading when structural validation fails", async () => {
     const directory = await project();
     await writeFile(join(directory, "req.md"), "# no managed requirement\n");

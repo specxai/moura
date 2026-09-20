@@ -17,7 +17,8 @@ describe("Moura Allure metadata names", () => {
     expect(
       mouraEvidenceName("evidence", ["REQ-002/SCN-001/CASE-002"], "unit"),
     ).toBe(
-      "evidence @allure.label.moura_requirement:REQ-002 " +
+      "evidence @allure.label.moura_traceability:managed " +
+        "@allure.label.moura_requirement:REQ-002 " +
         "@allure.label.moura_scenario:SCN-001 " +
         "@allure.label.moura_case:CASE-002 @allure.label.moura_layer:unit " +
         "@allure.label.epic:REQ-002 @allure.label.feature:SCN-001 " +

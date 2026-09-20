@@ -202,6 +202,32 @@ describe("CLI", () => {
     }
   });
 
+  it("cannot inject additional CLI diagnostics through an unmapped result name", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "moura-cli-test-"));
+    try {
+      await writeValidProject(directory);
+      await writeEvidence(directory);
+      await writeFile(
+        join(directory, "allure-results", "unsafe-result.json"),
+        JSON.stringify({
+          name: "normal\nERROR FAKE\r\u001b[2JUnicode 😀",
+          labels: [{ name: "moura_traceability", value: "managed" }],
+        }),
+      );
+
+      const result = await run(["check"], directory);
+      expect(result.status).toBe(0);
+      expect(result.stderr).toContain(
+        'WARNING UNMAPPED "normal\\nERROR FAKE\\r\\u001b[2JUnicode 😀"',
+      );
+      expect(result.stderr.match(/^ERROR FAKE/gmu)).toBeNull();
+      expect(result.stderr).not.toContain("\r");
+      expect(result.stderr).not.toContain(String.fromCharCode(0x1b));
+    } finally {
+      await rm(directory, { recursive: true });
+    }
+  });
+
   it("generates a requirement coverage report for an explicit project", async () => {
     const directory = await mkdtemp(join(tmpdir(), "moura-cli-test-"));
     try {

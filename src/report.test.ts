@@ -178,6 +178,28 @@ requirements:
     );
   });
 
+  it("does not render control characters from unmapped result names", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "moura-report-test-"));
+    directories.push(directory);
+    await writeProject(directory);
+    await writeFile(
+      join(directory, "allure-results", "unsafe-result.json"),
+      JSON.stringify({
+        name: "Unicode テスト 😀\nERROR injected\r\u001b[31mred",
+        labels: [{ name: "moura_traceability", value: "managed" }],
+      }),
+    );
+
+    const result = await reportProjectDirectory(directory);
+    const html = await readFile(result.outputPath!, "utf8");
+    expect(html).toContain(
+      "&quot;Unicode テスト 😀\\nERROR injected\\r\\u001b[31mred&quot;",
+    );
+    expect(html).not.toContain("\r");
+    expect(html).not.toContain(String.fromCharCode(0x1b));
+    expect(html).not.toContain("テスト 😀\nERROR injected");
+  });
+
   it("identifies adapter issue sources in command and escaped HTML diagnostics", async () => {
     const directory = await mkdtemp(join(tmpdir(), "moura-report-test-"));
     directories.push(directory);

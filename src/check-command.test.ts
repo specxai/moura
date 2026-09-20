@@ -274,6 +274,35 @@ requirements:
     expect(result.stderr[0]).toMatch(/^ERROR UNMAPPED unmapped test/u);
   });
 
+  it("renders an unsafe unmapped name as exactly one logical diagnostic line", async () => {
+    const directory = await project();
+    const results = join(directory, "allure-results");
+    await mkdir(results);
+    await Promise.all([
+      writeFile(
+        join(results, "mapped-result.json"),
+        JSON.stringify(allure("passed")),
+      ),
+      writeFile(
+        join(results, "unsafe-result.json"),
+        JSON.stringify({
+          name: "test\nERROR injected\r\u001b[31mred",
+          labels: [{ name: "moura_traceability", value: "managed" }],
+        }),
+      ),
+    ]);
+
+    const result = await checkProjectDirectory(directory);
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toHaveLength(1);
+    expect(result.stderr[0]).toContain(
+      '"test\\nERROR injected\\r\\u001b[31mred"',
+    );
+    expect(result.stderr[0]).not.toContain("\r");
+    expect(result.stderr[0]).not.toContain("\n");
+    expect(result.stderr[0]).not.toContain(String.fromCharCode(0x1b));
+  });
+
   it("stops before evidence loading when structural validation fails", async () => {
     const directory = await project();
     await writeFile(join(directory, "req.md"), "# no managed requirement\n");

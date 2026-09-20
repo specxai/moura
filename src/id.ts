@@ -57,6 +57,16 @@ export function interoperableStringError(value: string): string | undefined {
   return undefined;
 }
 
+/** Preserve safe display text and quote unsafe code units as visible escapes. */
+export function safeDisplayString(value: string): string {
+  if (interoperableStringError(value) === undefined) return value;
+  return JSON.stringify(value).replace(
+    /\p{Cc}/gu,
+    (character) =>
+      `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
+}
+
 /** Validate an external canonical Case ID without constructing domain nodes. */
 export function canonicalCaseIdError(value: string): string | undefined {
   const segments = value.split(SEPARATOR);

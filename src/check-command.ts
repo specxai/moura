@@ -8,6 +8,7 @@ import {
 import { checkVerification } from "./check.js";
 import type { EvidenceIssue, VerificationProjectCheckResult } from "./check.js";
 import type { MouraManifest } from "./manifest.js";
+import { safeDisplayString } from "./id.js";
 import { loadProjectDirectory } from "./project.js";
 
 export interface CheckCommandOutput {
@@ -46,8 +47,8 @@ export function formatTraceabilityDiagnostic(
   diagnostic: TraceabilityDiagnostic,
 ): string {
   const location = diagnostic.source
-    ? `${diagnostic.name} (${diagnostic.source})`
-    : diagnostic.name;
+    ? `${safeDisplayString(diagnostic.name)} (${safeDisplayString(diagnostic.source)})`
+    : safeDisplayString(diagnostic.name);
   return `${diagnostic.severity.toUpperCase()} ${diagnostic.code} ${location}: ${diagnostic.message}`;
 }
 

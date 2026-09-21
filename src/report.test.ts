@@ -183,9 +183,9 @@ requirements:
     directories.push(directory);
     await writeProject(directory);
     await writeFile(
-      join(directory, "allure-results", "unsafe-result.json"),
+      join(directory, "allure-results", "unsafe\u2028source\u2029-result.json"),
       JSON.stringify({
-        name: "Unicode テスト 😀\nERROR injected\r\u001b[31mred",
+        name: "Unicode テスト 😀\nERROR injected\r\u001b[31mred\u2028line\u2029paragraph",
         labels: [{ name: "moura_traceability", value: "managed" }],
       }),
     );
@@ -193,10 +193,14 @@ requirements:
     const result = await reportProjectDirectory(directory);
     const html = await readFile(result.outputPath!, "utf8");
     expect(html).toContain(
-      "&quot;Unicode テスト 😀\\nERROR injected\\r\\u001b[31mred&quot;",
+      "&quot;Unicode テスト 😀\\nERROR injected\\r\\u001b[31mred\\u2028line\\u2029paragraph&quot;",
+    );
+    expect(html).toContain(
+      "(&quot;unsafe\\u2028source\\u2029-result.json&quot;)",
     );
     expect(html).not.toContain("\r");
     expect(html).not.toContain(String.fromCharCode(0x1b));
+    expect(html).not.toMatch(/[\u2028\u2029]/u);
     expect(html).not.toContain("テスト 😀\nERROR injected");
   });
 

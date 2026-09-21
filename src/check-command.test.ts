@@ -274,7 +274,7 @@ requirements:
     expect(result.stderr[0]).toMatch(/^ERROR UNMAPPED unmapped test/u);
   });
 
-  it("renders an unsafe unmapped name as exactly one logical diagnostic line", async () => {
+  it("renders unsafe unmapped names and sources as exactly one logical diagnostic line", async () => {
     const directory = await project();
     const results = join(directory, "allure-results");
     await mkdir(results);
@@ -284,9 +284,9 @@ requirements:
         JSON.stringify(allure("passed")),
       ),
       writeFile(
-        join(results, "unsafe-result.json"),
+        join(results, "unsafe\u2028source\u2029-result.json"),
         JSON.stringify({
-          name: "test\nERROR injected\r\u001b[31mred",
+          name: "test\nERROR injected\r\u001b[31mred\u2028line\u2029paragraph",
           labels: [{ name: "moura_traceability", value: "managed" }],
         }),
       ),
@@ -296,11 +296,15 @@ requirements:
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toHaveLength(1);
     expect(result.stderr[0]).toContain(
-      '"test\\nERROR injected\\r\\u001b[31mred"',
+      '"test\\nERROR injected\\r\\u001b[31mred\\u2028line\\u2029paragraph"',
+    );
+    expect(result.stderr[0]).toContain(
+      '("unsafe\\u2028source\\u2029-result.json")',
     );
     expect(result.stderr[0]).not.toContain("\r");
     expect(result.stderr[0]).not.toContain("\n");
     expect(result.stderr[0]).not.toContain(String.fromCharCode(0x1b));
+    expect(result.stderr[0]).not.toMatch(/[\u2028\u2029]/u);
   });
 
   it("stops before evidence loading when structural validation fails", async () => {

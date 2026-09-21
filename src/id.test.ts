@@ -88,6 +88,8 @@ describe("canonicalId", () => {
     ["NEL", "test\u0085ERROR", '"test\\u0085ERROR"'],
     ["CSI sequence", "test\u009b31mERROR", '"test\\u009b31mERROR"'],
     ["C1 control", "test\u009fERROR", '"test\\u009fERROR"'],
+    ["line separator", "test\u2028ERROR", '"test\\u2028ERROR"'],
+    ["paragraph separator", "test\u2029ERROR", '"test\\u2029ERROR"'],
   ])(
     "renders %s as a visible single-line display string",
     (_kind, value, expected) => {
@@ -97,7 +99,9 @@ describe("canonicalId", () => {
           const codePoint = character.codePointAt(0)!;
           return !(
             codePoint <= 0x1f ||
-            (codePoint >= 0x7f && codePoint <= 0x9f)
+            (codePoint >= 0x7f && codePoint <= 0x9f) ||
+            codePoint === 0x2028 ||
+            codePoint === 0x2029
           );
         }),
       ).toBe(true);

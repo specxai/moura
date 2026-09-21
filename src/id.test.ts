@@ -82,14 +82,16 @@ describe("canonicalId", () => {
   it.each([
     ["newline", "test\nERROR injected", '"test\\nERROR injected"'],
     ["carriage return", "test\rERROR injected", '"test\\rERROR injected"'],
-    ["ANSI escape", "test\u001b[31mERROR", '"test\\u001b[31mERROR"'],
+    ["ANSI escape", "test\u001b[31mERROR", "testERROR"],
     ["C0 control", "test\u0001ERROR", '"test\\u0001ERROR"'],
     ["DEL", "test\u007fERROR", '"test\\u007fERROR"'],
     ["NEL", "test\u0085ERROR", '"test\\u0085ERROR"'],
-    ["CSI sequence", "test\u009b31mERROR", '"test\\u009b31mERROR"'],
+    ["CSI sequence", "test\u009b31mERROR", "testERROR"],
     ["C1 control", "test\u009fERROR", '"test\\u009fERROR"'],
     ["line separator", "test\u2028ERROR", '"test\\u2028ERROR"'],
     ["paragraph separator", "test\u2029ERROR", '"test\\u2029ERROR"'],
+    ["bidi override", "test\u202eERROR", '"test\\u202eERROR"'],
+    ["bidi isolate", "test\u2067ERROR", '"test\\u2067ERROR"'],
   ])(
     "renders %s as a visible single-line display string",
     (_kind, value, expected) => {
@@ -101,7 +103,8 @@ describe("canonicalId", () => {
             codePoint <= 0x1f ||
             (codePoint >= 0x7f && codePoint <= 0x9f) ||
             codePoint === 0x2028 ||
-            codePoint === 0x2029
+            codePoint === 0x2029 ||
+            /\p{Bidi_Control}/u.test(character)
           );
         }),
       ).toBe(true);

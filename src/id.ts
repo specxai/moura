@@ -4,6 +4,9 @@ const SEPARATOR = "/";
 
 /** Control code points are not portable across Moura's serialization boundaries. */
 const UNICODE_CONTROL = /\p{Cc}/u;
+/** Code points that can alter the logical line structure of displayed text. */
+const UNSAFE_DISPLAY_CHARACTER = /[\p{Cc}\u2028\u2029]/u;
+const UNSAFE_DISPLAY_CHARACTER_GLOBAL = /[\p{Cc}\u2028\u2029]/gu;
 
 export type LocalId = string;
 export type CanonicalId = string;
@@ -59,9 +62,13 @@ export function interoperableStringError(value: string): string | undefined {
 
 /** Preserve safe display text and quote unsafe code units as visible escapes. */
 export function safeDisplayString(value: string): string {
-  if (interoperableStringError(value) === undefined) return value;
+  if (
+    interoperableStringError(value) === undefined &&
+    !UNSAFE_DISPLAY_CHARACTER.test(value)
+  )
+    return value;
   return JSON.stringify(value).replace(
-    /\p{Cc}/gu,
+    UNSAFE_DISPLAY_CHARACTER_GLOBAL,
     (character) =>
       `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`,
   );

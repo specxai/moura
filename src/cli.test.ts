@@ -208,9 +208,13 @@ describe("CLI", () => {
       await writeValidProject(directory);
       await writeEvidence(directory);
       await writeFile(
-        join(directory, "allure-results", "unsafe-result.json"),
+        join(
+          directory,
+          "allure-results",
+          "unsafe\u2028source\u2029-result.json",
+        ),
         JSON.stringify({
-          name: "normal\nERROR FAKE\r\u001b[2JUnicode 😀",
+          name: "normal\nERROR FAKE\r\u001b[2J\u2028line\u2029paragraph Unicode 😀",
           labels: [{ name: "moura_traceability", value: "managed" }],
         }),
       );
@@ -218,11 +222,15 @@ describe("CLI", () => {
       const result = await run(["check"], directory);
       expect(result.status).toBe(0);
       expect(result.stderr).toContain(
-        'WARNING UNMAPPED "normal\\nERROR FAKE\\r\\u001b[2JUnicode 😀"',
+        'WARNING UNMAPPED "normal\\nERROR FAKE\\r\\u001b[2J\\u2028line\\u2029paragraph Unicode 😀"',
+      );
+      expect(result.stderr).toContain(
+        '("unsafe\\u2028source\\u2029-result.json")',
       );
       expect(result.stderr.match(/^ERROR FAKE/gmu)).toBeNull();
       expect(result.stderr).not.toContain("\r");
       expect(result.stderr).not.toContain(String.fromCharCode(0x1b));
+      expect(result.stderr).not.toMatch(/[\u2028\u2029]/u);
     } finally {
       await rm(directory, { recursive: true });
     }

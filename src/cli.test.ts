@@ -211,10 +211,10 @@ describe("CLI", () => {
         join(
           directory,
           "allure-results",
-          "unsafe\u2028source\u2029-result.json",
+          "unsafe\u2028source\u2029\u2067-result.json",
         ),
         JSON.stringify({
-          name: "normal\nERROR FAKE\r\u001b[2J\u2028line\u2029paragraph Unicode 😀",
+          name: "normal\nERROR FAKE\r\u001b[2J\u2028line\u2029paragraph\u202eoverride Unicode 😀",
           labels: [{ name: "moura_traceability", value: "managed" }],
         }),
       );
@@ -222,15 +222,16 @@ describe("CLI", () => {
       const result = await run(["check"], directory);
       expect(result.status).toBe(0);
       expect(result.stderr).toContain(
-        'WARNING UNMAPPED "normal\\nERROR FAKE\\r\\u001b[2J\\u2028line\\u2029paragraph Unicode 😀"',
+        'WARNING UNMAPPED "normal\\nERROR FAKE\\r\\u2028line\\u2029paragraph\\u202eoverride Unicode 😀"',
       );
       expect(result.stderr).toContain(
-        '("unsafe\\u2028source\\u2029-result.json")',
+        '("unsafe\\u2028source\\u2029\\u2067-result.json")',
       );
       expect(result.stderr.match(/^ERROR FAKE/gmu)).toBeNull();
       expect(result.stderr).not.toContain("\r");
       expect(result.stderr).not.toContain(String.fromCharCode(0x1b));
       expect(result.stderr).not.toMatch(/[\u2028\u2029]/u);
+      expect(result.stderr).not.toMatch(/\p{Bidi_Control}/u);
     } finally {
       await rm(directory, { recursive: true });
     }

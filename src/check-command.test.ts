@@ -286,7 +286,7 @@ requirements:
       writeFile(
         join(results, "unsafe\u2028source\u2029-result.json"),
         JSON.stringify({
-          name: "test\nERROR injected\r\u001b[31mred\u2028line\u2029paragraph",
+          name: "test\nERROR injected\r\u001b[31mred\u2028line\u2029paragraph\u202eoverride",
           labels: [{ name: "moura_traceability", value: "managed" }],
         }),
       ),
@@ -296,7 +296,7 @@ requirements:
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toHaveLength(1);
     expect(result.stderr[0]).toContain(
-      '"test\\nERROR injected\\r\\u001b[31mred\\u2028line\\u2029paragraph"',
+      '"test\\nERROR injected\\rred\\u2028line\\u2029paragraph\\u202eoverride"',
     );
     expect(result.stderr[0]).toContain(
       '("unsafe\\u2028source\\u2029-result.json")',
@@ -305,6 +305,7 @@ requirements:
     expect(result.stderr[0]).not.toContain("\n");
     expect(result.stderr[0]).not.toContain(String.fromCharCode(0x1b));
     expect(result.stderr[0]).not.toMatch(/[\u2028\u2029]/u);
+    expect(result.stderr[0]).not.toMatch(/\p{Bidi_Control}/u);
   });
 
   it("stops before evidence loading when structural validation fails", async () => {

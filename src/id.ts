@@ -1,9 +1,15 @@
+import { stripVTControlCharacters } from "node:util";
+
 import type { NodeKind, TraceNode } from "./model.js";
 
 const SEPARATOR = "/";
 
 /** Control code points are not portable across Moura's serialization boundaries. */
 const UNICODE_CONTROL = /\p{Cc}/u;
+/** Characters that can alter terminal or logical display structure. */
+const UNSAFE_DISPLAY_CHARACTER = /[\p{Cc}\p{Bidi_Control}\u2028\u2029]/u;
+const UNSAFE_DISPLAY_CHARACTER_GLOBAL =
+  /[\p{Cc}\p{Bidi_Control}\u2028\u2029]/gu;
 
 export type LocalId = string;
 export type CanonicalId = string;
@@ -55,6 +61,21 @@ export function interoperableStringError(value: string): string | undefined {
     }
   }
   return undefined;
+}
+
+/** Make untrusted text safe for a single diagnostic/display boundary. */
+export function safeDisplayString(value: string): string {
+  const withoutTerminalControls = stripVTControlCharacters(value);
+  if (
+    interoperableStringError(withoutTerminalControls) === undefined &&
+    !UNSAFE_DISPLAY_CHARACTER.test(withoutTerminalControls)
+  )
+    return withoutTerminalControls;
+  return JSON.stringify(withoutTerminalControls).replace(
+    UNSAFE_DISPLAY_CHARACTER_GLOBAL,
+    (character) =>
+      `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
 }
 
 /** Validate an external canonical Case ID without constructing domain nodes. */

@@ -50,11 +50,45 @@ Status and severity are separate. Warning statuses remain `SKIPPED` or `UNIMPLEM
 
 The check result contains one structured entry per declared pair with its canonical Case ID, layer, status (`PASS`, `FAIL`, `BROKEN`, `MISSING`, `SKIPPED`, or `UNIMPLEMENTED`), and severity. It also contains deterministic evidence issues and a project-level `passed` value. Entries retain manifest order: Requirement, then Scenario, then Case, then the Case's `verify` layers followed by its `unimplemented` layers. Adapter or evidence ordering never changes entry order or aggregation.
 
-The project passes when every pair has success or warning severity and there are no evidence issues.
+The project passes when every pair has success or warning severity, there are
+no evidence issues, and there are no error-severity reverse-traceability
+diagnostics.
+
+## Reverse traceability and UNMAPPED
+
+Pair aggregation answers **Specification → Test**: when a required Case ×
+layer has no Evidence, its status is `MISSING` and its severity is always
+error. Reverse traceability answers **Test → Specification**. An in-scope test
+result with no authoritative Case mapping produces the separate `UNMAPPED`
+diagnostic. It is not a `VerificationCheckStatus`, does not create or alter a
+Case × layer entry, and does not affect Requirement Coverage counts.
+
+Traceability scope is explicit and result-level. An Allure result is managed
+when it contains the label `moura_traceability=managed`. A managed result with
+none of the four authoritative mapping labels is `UNMAPPED`. Results without
+that marker and without authoritative labels remain unrelated and out of scope,
+so mixed Allure directories remain backward compatible. There are no test-name,
+file-name, directory-name, or internal-suite heuristics.
+
+The authoritative mapping labels remain `moura_requirement`,
+`moura_scenario`, `moura_case`, and `moura_layer`. Standard Allure Behavior
+labels (`epic`, `feature`, and `story`) are presentation only; a managed result
+with only Behavior labels is therefore `UNMAPPED`. A result containing any
+authoritative label is instead processed as Evidence: partial metadata remains
+an adapter issue, while complete metadata with an unknown Case or invalid layer
+remains a semantic Evidence issue. Neither is reclassified as `UNMAPPED`.
+
+`UNMAPPED` has warning severity by default and alone does not fail `moura
+check`. `moura check [directory] --strict-traceability` promotes only this
+diagnostic to error and makes the check exit nonzero. Existing status severities
+are unchanged. Diagnostics retain the test name and result filename and follow
+the loader's deterministic filename order. Requirement Coverage reports use the
+same project evaluation and show reverse-traceability diagnostics in a section
+separate from pair coverage.
 
 ## CLI flow
 
-`moura check [directory]`:
+`moura check [directory] [--strict-traceability]`:
 
 1. structurally validate the project;
 2. load normalized evidence through a narrow adapter boundary;
@@ -68,7 +102,7 @@ Each declared pair is printed as `<STATUS> <canonical Case ID> [<layer>] (<sever
 
 ## Allure evidence adapter
 
-The public Allure adapter reads the small structural subset of Allure result JSON that Moura needs; parsing does not require Allure runtime libraries. Only `*-result.json` files are discovered by the directory loader, in deterministic filename order. Results without Moura labels are unrelated and ignored. Partially or incorrectly labelled results produce structured adapter issues that remain distinct from semantic `EvidenceIssue`s.
+The public Allure adapter reads the small structural subset of Allure result JSON that Moura needs; parsing does not require Allure runtime libraries. Only `*-result.json` files are discovered by the directory loader, in deterministic filename order. Unmarked results without authoritative Moura labels are unrelated and ignored; explicitly managed results without them produce `UNMAPPED`. Partially or incorrectly labelled results produce structured adapter issues that remain distinct from semantic `EvidenceIssue`s.
 
 Custom labels and statuses map as follows:
 

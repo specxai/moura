@@ -25,12 +25,23 @@ if (command === "--version" || command === "-v") {
     }
   }
 } else if (command === "check") {
-  if (commandArguments.length > 1) {
-    console.error("Usage: moura check [directory]");
+  const strict = commandArguments.includes("--strict-traceability");
+  const directories = commandArguments.filter(
+    (argument) => argument !== "--strict-traceability",
+  );
+  if (
+    directories.length > 1 ||
+    commandArguments.some(
+      (argument) =>
+        argument.startsWith("--") && argument !== "--strict-traceability",
+    )
+  ) {
+    console.error("Usage: moura check [directory] [--strict-traceability]");
     process.exitCode = 1;
   } else {
     const result = await checkProjectDirectory(
-      commandArguments[0] ?? process.cwd(),
+      directories[0] ?? process.cwd(),
+      { strictTraceability: strict },
     );
     for (const line of result.stdout) console.log(line);
     for (const line of result.stderr) console.error(line);

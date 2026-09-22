@@ -214,6 +214,100 @@ requirements:
     );
   });
 
+  it("warns for managed unmapped results without failing otherwise passing checks", async () => {
+    const directory = await project();
+    const results = join(directory, "allure-results");
+    await mkdir(results);
+    await Promise.all([
+      writeFile(
+        join(results, "mapped-result.json"),
+        JSON.stringify(allure("passed")),
+      ),
+      writeFile(
+        join(results, "unmapped-result.json"),
+        JSON.stringify({
+          name: "unmapped test",
+          status: "passed",
+          labels: [{ name: "moura_traceability", value: "managed" }],
+        }),
+      ),
+      writeFile(
+        join(results, "unrelated-result.json"),
+        JSON.stringify({
+          name: "unrelated test",
+          status: "passed",
+          labels: [],
+        }),
+      ),
+    ]);
+
+    const result = await checkProjectDirectory(directory);
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toContain(
+      "WARNING UNMAPPED unmapped test (unmapped-result.json): No Moura Case is associated with this test result.",
+    );
+    expect(result.stderr.join("\n")).not.toContain("unrelated test");
+  });
+
+  it("promotes managed unmapped results to errors in strict mode", async () => {
+    const directory = await project();
+    const results = join(directory, "allure-results");
+    await mkdir(results);
+    await Promise.all([
+      writeFile(
+        join(results, "mapped-result.json"),
+        JSON.stringify(allure("passed")),
+      ),
+      writeFile(
+        join(results, "unmapped-result.json"),
+        JSON.stringify({
+          name: "unmapped test",
+          labels: [{ name: "moura_traceability", value: "managed" }],
+        }),
+      ),
+    ]);
+
+    const result = await checkProjectDirectory(directory, {
+      strictTraceability: true,
+    });
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr[0]).toMatch(/^ERROR UNMAPPED unmapped test/u);
+  });
+
+  it("renders unsafe unmapped names and sources as exactly one logical diagnostic line", async () => {
+    const directory = await project();
+    const results = join(directory, "allure-results");
+    await mkdir(results);
+    await Promise.all([
+      writeFile(
+        join(results, "mapped-result.json"),
+        JSON.stringify(allure("passed")),
+      ),
+      writeFile(
+        join(results, "unsafe\u2028source\u2029-result.json"),
+        JSON.stringify({
+          name: "test\nERROR injected\r\u001b[31mred\u2028line\u2029paragraph\u202eoverride",
+          labels: [{ name: "moura_traceability", value: "managed" }],
+        }),
+      ),
+    ]);
+
+    const result = await checkProjectDirectory(directory);
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toHaveLength(1);
+    expect(result.stderr[0]).toContain(
+      '"test\\nERROR injected\\rred\\u2028line\\u2029paragraph\\u202eoverride"',
+    );
+    expect(result.stderr[0]).toContain(
+      '("unsafe\\u2028source\\u2029-result.json")',
+    );
+    expect(result.stderr[0]).not.toContain("\r");
+    expect(result.stderr[0]).not.toContain("\n");
+    expect(result.stderr[0]).not.toContain(String.fromCharCode(0x1b));
+    expect(result.stderr[0]).not.toMatch(/[\u2028\u2029]/u);
+    expect(result.stderr[0]).not.toMatch(/\p{Bidi_Control}/u);
+  });
+
   it("stops before evidence loading when structural validation fails", async () => {
     const directory = await project();
     await writeFile(join(directory, "req.md"), "# no managed requirement\n");

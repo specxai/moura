@@ -35,6 +35,7 @@ export function mouraEvidenceName(
   ];
   return [
     name,
+    "@allure.label.moura_traceability:managed",
     ...mouraLabels,
     `@allure.label.moura_layer:${layer}`,
     ...behaviorLabels,

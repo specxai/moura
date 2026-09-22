@@ -102,7 +102,7 @@ jobs:
 
       - name: Moura self-check
         if: always() && steps.build.outcome == 'success'
-        run: node dist/cli.js check .
+        run: node dist/cli.js check . --strict-traceability
 
       - name: Write quality job summary
         run: pnpm quality:summary

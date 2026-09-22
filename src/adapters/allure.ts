@@ -10,6 +10,7 @@ import {
 
 /** The small, Moura-owned subset of an Allure result used during conversion. */
 export interface AllureEvidenceResult {
+  readonly name?: unknown;
   readonly labels?: readonly AllureEvidenceLabel[];
   readonly status?: unknown;
 }
@@ -49,6 +50,13 @@ export interface EvidenceAdapterIssue {
 export interface EvidenceAdapterResult {
   readonly evidence: readonly Evidence[];
   readonly issues: readonly EvidenceAdapterIssue[];
+  readonly unmapped?: readonly UnmappedResult[];
+}
+
+/** An explicitly Moura-managed Allure result without authoritative mapping. */
+export interface UnmappedResult {
+  readonly name: string;
+  readonly source?: string;
 }
 
 const supportedStatuses = new Set<Evidence["status"]>([
@@ -58,7 +66,7 @@ const supportedStatuses = new Set<Evidence["status"]>([
   "skipped",
 ]);
 
-/** Convert one parsed Allure result. Results without Moura labels are ignored. */
+/** Convert one parsed Allure result. Only explicitly managed unlabeled results are unmapped. */
 export function convertAllureResult(
   input: unknown,
   source?: string,
@@ -79,7 +87,24 @@ export function convertAllureResult(
         label.name === "moura_case" ||
         label.name === "moura_layer"),
   );
-  if (mouraLabels.length === 0) return { evidence: [], issues: [] };
+  if (mouraLabels.length === 0) {
+    const managed = labels.some(
+      (label) =>
+        isRecord(label) &&
+        label.name === "moura_traceability" &&
+        label.value === "managed",
+    );
+    if (!managed) return { evidence: [], issues: [] };
+    const name =
+      typeof input.name === "string" && input.name.length > 0
+        ? input.name
+        : "Unnamed Allure result";
+    return {
+      evidence: [],
+      issues: [],
+      unmapped: [{ name, ...(source === undefined ? {} : { source }) }],
+    };
+  }
 
   const issues: EvidenceAdapterIssue[] = [];
   const requirementValues: string[] = [];
@@ -230,6 +255,7 @@ export async function loadAllureResultsDirectory(
 ): Promise<EvidenceAdapterResult> {
   const evidence: Evidence[] = [];
   const issues: EvidenceAdapterIssue[] = [];
+  const unmapped: UnmappedResult[] = [];
   let files: string[];
   try {
     files = (await readdir(directory))
@@ -273,8 +299,9 @@ export async function loadAllureResultsDirectory(
     const converted = convertAllureResult(parsed, source);
     evidence.push(...converted.evidence);
     issues.push(...converted.issues);
+    unmapped.push(...(converted.unmapped ?? []));
   }
-  return { evidence, issues };
+  return { evidence, issues, unmapped };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

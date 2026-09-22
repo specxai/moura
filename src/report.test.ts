@@ -150,6 +150,65 @@ requirements:
     expect(html).toContain("unknown-evidence-id: unknown [integration]:");
   });
 
+  it("renders reverse traceability diagnostics separately from pair coverage", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "moura-report-test-"));
+    directories.push(directory);
+    await writeProject(directory);
+    await writeFile(
+      join(directory, "allure-results", "unmapped-result.json"),
+      JSON.stringify({
+        name: "unmapped report test",
+        labels: [{ name: "moura_traceability", value: "managed" }],
+      }),
+    );
+
+    const result = await reportProjectDirectory(directory);
+    expect(result.exitCode).toBe(0);
+    const html = await readFile(result.outputPath!, "utf8");
+    expect(html).toContain("Reverse traceability diagnostics");
+    expect(html).toContain("WARNING UNMAPPED unmapped report test");
+    expect(html).toContain("Required Case × layer pairs");
+
+    const strict = await reportProjectDirectory(directory, {
+      strictTraceability: true,
+    });
+    expect(strict.exitCode).toBe(1);
+    expect(strict.errors).toContainEqual(
+      expect.stringContaining("ERROR UNMAPPED unmapped report test"),
+    );
+  });
+
+  it("does not render control characters from unmapped result names", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "moura-report-test-"));
+    directories.push(directory);
+    await writeProject(directory);
+    await writeFile(
+      join(
+        directory,
+        "allure-results",
+        "unsafe\u2028source\u2029\u2067-result.json",
+      ),
+      JSON.stringify({
+        name: "Unicode テスト 😀\nERROR injected\r\u001b[31mred\u2028line\u2029paragraph\u202eoverride",
+        labels: [{ name: "moura_traceability", value: "managed" }],
+      }),
+    );
+
+    const result = await reportProjectDirectory(directory);
+    const html = await readFile(result.outputPath!, "utf8");
+    expect(html).toContain(
+      "&quot;Unicode テスト 😀\\nERROR injected\\rred\\u2028line\\u2029paragraph\\u202eoverride&quot;",
+    );
+    expect(html).toContain(
+      "(&quot;unsafe\\u2028source\\u2029\\u2067-result.json&quot;)",
+    );
+    expect(html).not.toContain("\r");
+    expect(html).not.toContain(String.fromCharCode(0x1b));
+    expect(html).not.toMatch(/[\u2028\u2029]/u);
+    expect(html).not.toMatch(/\p{Bidi_Control}/u);
+    expect(html).not.toContain("テスト 😀\nERROR injected");
+  });
+
   it("identifies adapter issue sources in command and escaped HTML diagnostics", async () => {
     const directory = await mkdtemp(join(tmpdir(), "moura-report-test-"));
     directories.push(directory);

@@ -230,6 +230,46 @@ describe("Allure evidence conversion", () => {
     ).toEqual({ evidence: [], issues: [] });
   });
 
+  it("classifies explicitly managed results without authoritative labels as unmapped", () => {
+    expect(
+      convertAllureResult(
+        {
+          name: "behavior labels are presentation only",
+          status: "passed",
+          labels: [
+            { name: "moura_traceability", value: "managed" },
+            { name: "epic", value: "REQ-001" },
+            { name: "feature", value: "SCN-001" },
+            { name: "story", value: "CASE-001" },
+          ],
+        },
+        "managed-result.json",
+      ),
+    ).toEqual({
+      evidence: [],
+      issues: [],
+      unmapped: [
+        {
+          name: "behavior labels are presentation only",
+          source: "managed-result.json",
+        },
+      ],
+    });
+  });
+
+  it("keeps partial authoritative metadata as adapter issues, not unmapped", () => {
+    const converted = convertAllureResult(
+      result("passed", [
+        { name: "moura_traceability", value: "managed" },
+        { name: "moura_case", value: "CASE-001" },
+      ]),
+    );
+    expect(converted.unmapped).toBeUndefined();
+    expect(converted.issues).toContainEqual(
+      expect.objectContaining({ code: "missing-moura-requirement" }),
+    );
+  });
+
   it("reconstructs evidence only from Moura labels when Behavior labels disagree", () => {
     expect(
       convertAllureResult(
@@ -252,6 +292,38 @@ describe("Allure evidence conversion", () => {
 });
 
 describe("Allure results directory loading", () => {
+  it("orders mixed mapped and managed-unmapped results by source filename", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "moura-allure-"));
+    temporaryDirectories.push(directory);
+    await Promise.all([
+      writeFile(
+        join(directory, "c-result.json"),
+        JSON.stringify({
+          name: "third",
+          labels: [{ name: "moura_traceability", value: "managed" }],
+        }),
+      ),
+      writeFile(
+        join(directory, "a-result.json"),
+        JSON.stringify({
+          name: "first",
+          labels: [{ name: "moura_traceability", value: "managed" }],
+        }),
+      ),
+      writeFile(
+        join(directory, "b-result.json"),
+        JSON.stringify(result("passed", [...hierarchyLabels(), layerLabel])),
+      ),
+    ]);
+
+    const loaded = await loadAllureResultsDirectory(directory);
+    expect(loaded.evidence).toHaveLength(1);
+    expect(loaded.unmapped?.map(({ name, source }) => [name, source])).toEqual([
+      ["first", "a-result.json"],
+      ["third", "c-result.json"],
+    ]);
+  });
+
   it(
     mouraEvidenceName(
       "loads only sorted result files and reports malformed JSON deterministically",

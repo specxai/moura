@@ -1,4 +1,12 @@
-import { access, cp, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import {
+  access,
+  cp,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import console from "node:console";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
@@ -7,6 +15,29 @@ import { pathToFileURL } from "node:url";
 import { runCommand } from "./run-command.js";
 
 const root = resolve(import.meta.dirname, "..");
+const evidencePath = join(
+  root,
+  "allure-results",
+  "moura-package-smoke-result.json",
+);
+
+const packageSmokeEvidence = {
+  name: "supports the documented contract through the installed package boundary",
+  status: "passed",
+  labels: [
+    { name: "moura_traceability", value: "managed" },
+    { name: "moura_requirement", value: "REQ-006" },
+    { name: "moura_scenario", value: "SCN-001" },
+    { name: "moura_case", value: "CASE-001" },
+    { name: "moura_requirement", value: "REQ-006" },
+    { name: "moura_scenario", value: "SCN-001" },
+    { name: "moura_case", value: "CASE-002" },
+    { name: "moura_layer", value: "integration" },
+    { name: "epic", value: "REQ-006" },
+    { name: "feature", value: "SCN-001" },
+    { name: "story", value: "CASE-001" },
+  ],
+};
 
 interface PackageMetadata {
   readonly name: string;
@@ -48,6 +79,7 @@ function run(command: string, args: readonly string[], cwd = root): string {
 }
 
 export async function runPackageSmoke(): Promise<void> {
+  await rm(evidencePath, { force: true });
   const temporary = await mkdtemp(join(tmpdir(), "moura-package-smoke-"));
   const packageDirectory = join(temporary, "consumer");
   const fixture = join(temporary, "passing-project");
@@ -98,6 +130,11 @@ export async function runPackageSmoke(): Promise<void> {
     const report = await readFile(join(fixture, "moura-report", "index.html"));
     if (report.byteLength === 0)
       throw new Error("Installed package generated an empty coverage report");
+    await mkdir(join(root, "allure-results"), { recursive: true });
+    await writeFile(
+      evidencePath,
+      `${JSON.stringify(packageSmokeEvidence, undefined, 2)}\n`,
+    );
     console.log("Packed package installed CLI smoke test passed.");
   } finally {
     await rm(temporary, { recursive: true, force: true });

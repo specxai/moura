@@ -59,6 +59,10 @@ jobs:
         if: always() && steps.install.outcome == 'success'
         run: pnpm build
 
+      - name: Test installed package
+        if: always() && steps.install.outcome == 'success'
+        run: pnpm test:package
+
       - name: Validate Moura repository
         if: always() && steps.build.outcome == 'success'
         run: node dist/cli.js validate .
@@ -112,9 +116,6 @@ jobs:
 
       - name: Check package contents
         run: pnpm pack --dry-run
-
-      - name: Test installed package
-        run: pnpm test:package
 
       - name: Assemble quality site
         run: pnpm quality:site

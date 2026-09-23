@@ -7,7 +7,7 @@ import { reportProjectDirectory } from "./report.js";
 const [command, ...commandArguments] = process.argv.slice(2);
 
 if (command === "--version" || command === "-v") {
-  console.log("moura 0.1.1");
+  console.log("moura 0.1.2");
 } else if (command === "validate") {
   if (commandArguments.length > 1) {
     console.error("Usage: moura validate [directory]");

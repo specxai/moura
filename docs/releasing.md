@@ -46,8 +46,10 @@ npm setting supplies short-lived OIDC credentials; the workflow does not use an
 `NPM_TOKEN`.
 
 The package smoke test creates a tarball, installs it in a temporary consumer
-project, invokes the installed `moura` binary for version/help/validate/check,
-and removes the temporary directory. It does not publish anything.
+project, invokes the installed `moura` binary for version/help/validate/check/
+report, verifies the generated report is non-empty, and removes the temporary
+directory. Its fixture uses the same managed, separate-local-ID metadata
+contract documented in the README. It does not publish anything.
 
 The repository must have **Settings → Pages → Build and deployment → Source**
 set to **GitHub Actions**. This one-time repository setting is required before

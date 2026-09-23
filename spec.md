@@ -231,3 +231,20 @@ misstating results.
 Quality-pipeline command execution preserves argument boundaries and captured
 output and reports both process failures and spawn failures with actionable
 context.
+
+## REQ-006
+
+### SCN-001 Use the documented public traceability contract
+
+#### CASE-001 Process a documented project through the packaged CLI
+
+In a clean consumer installation, the packaged CLI accepts managed Allure
+Evidence whose authoritative mapping is expressed by separate
+`moura_requirement`, `moura_scenario`, `moura_case`, and `moura_layer` labels.
+It validates the documented minimal project, checks its Evidence, and generates
+a non-empty Requirement Coverage report without importing repository source.
+
+#### CASE-002 Keep package and CLI release identities consistent
+
+The package artifact retains the declared package name, version, and `moura`
+binary mapping, and the installed CLI reports the same version as the artifact.

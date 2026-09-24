@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "clean:results": "node -e \"import { rmSync } from 'node:fs'; rmSync('allure-results', { recursive: true, force: true });\"",
+    "pretest": "npm run clean:results",
     "test": "vitest run",
     "verify:results": "node scripts/verify-results.mjs"
   },

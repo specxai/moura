@@ -28,6 +28,24 @@ function run(command: string, args: readonly string[], cwd: string): string {
   return `${result.stdout}${result.stderr}`;
 }
 
+function expectMissingEvidence(project: string): void {
+  try {
+    run(
+      "pnpm",
+      ["exec", "moura", "check", ".", "--strict-traceability"],
+      project,
+    );
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.includes("MISSING REQ-001/SCN-001/CASE-001 [unit]")
+    )
+      return;
+    throw error;
+  }
+  throw new Error("Moura check passed without current-run Evidence");
+}
+
 interface AllureResult {
   readonly status?: unknown;
   readonly labels?: readonly {
@@ -68,6 +86,37 @@ async function verifyExampleResult(project: string): Promise<void> {
     if (!hasLabel(result, name, value))
       throw new Error(`Example result is missing ${name}=${value}`);
   }
+}
+
+const staleExampleEvidence = {
+  name: "stale passing result",
+  status: "passed",
+  labels: [
+    { name: "moura_traceability", value: "managed" },
+    { name: "moura_requirement", value: "REQ-001" },
+    { name: "moura_scenario", value: "SCN-001" },
+    { name: "moura_case", value: "CASE-001" },
+    { name: "moura_layer", value: "unit" },
+  ],
+};
+
+async function seedStaleExampleEvidence(project: string): Promise<void> {
+  const resultsDirectory = join(project, "allure-results");
+  await mkdir(resultsDirectory, { recursive: true });
+  await writeFile(
+    join(resultsDirectory, "stale-result.json"),
+    `${JSON.stringify(staleExampleEvidence, undefined, 2)}\n`,
+  );
+}
+
+async function verifyResultsRemoved(project: string): Promise<void> {
+  let resultsExist = true;
+  try {
+    await access(join(project, "allure-results"));
+  } catch {
+    resultsExist = false;
+  }
+  if (resultsExist) throw new Error("Stale Allure results were not removed");
 }
 
 const onboardingEvidence = {
@@ -117,6 +166,13 @@ export async function runOnboardingExample(): Promise<void> {
 
     run("pnpm", ["install", "--ignore-workspace"], project);
     run("pnpm", ["exec", "moura", "validate", "."], project);
+
+    await seedStaleExampleEvidence(project);
+    run("pnpm", ["run", "clean:results"], project);
+    await verifyResultsRemoved(project);
+    expectMissingEvidence(project);
+
+    await seedStaleExampleEvidence(project);
     run("pnpm", ["test"], project);
     run("pnpm", ["run", "verify:results"], project);
     await verifyExampleResult(project);

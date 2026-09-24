@@ -262,8 +262,11 @@ Scenario → Case Behavior hierarchy.
 
 #### CASE-002 Pass strict Moura verification
 
-The generated example Evidence validates and passes `moura check
---strict-traceability` without relying on Moura's internal dogfooding helpers.
+Before every test execution, the example removes prior Allure results using a
+cross-platform Node.js filesystem API. A run without current Evidence reports
+MISSING rather than passing from stale Evidence; generated current-run Evidence
+validates and passes `moura check --strict-traceability` without relying on
+Moura's internal dogfooding helpers.
 
 #### CASE-003 Generate Requirement Coverage
 

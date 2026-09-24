@@ -19,8 +19,10 @@ npx moura report .
 
 Then open `moura-report/index.html`. `npm test` runs Vitest; the configured
 `allure-vitest` reporter writes machine-readable Allure result JSON to
-`allure-results/`. That directory is Moura's Evidence input. It is **not** an
-Allure HTML report. Generating an optional Allure HTML report is a separate
+`allure-results/`. Before every test run, the `pretest` script removes that
+directory with the Node.js filesystem API, so Moura can only consume Evidence
+from the current run. That directory is Moura's Evidence input. It is **not**
+an Allure HTML report. Generating an optional Allure HTML report is a separate
 Allure operation and is not needed by `moura check` or `moura report`.
 `npm run verify:results` uses Node.js—not platform-specific shell utilities—to
 confirm that result JSON exists and is non-empty, so the same path works on

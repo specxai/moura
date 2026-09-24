@@ -248,3 +248,24 @@ a non-empty Requirement Coverage report without importing repository source.
 
 The package artifact retains the declared package name, version, and `moura`
 binary mapping, and the installed CLI reports the same version as the artifact.
+
+## REQ-007
+
+### SCN-001 Use the official Vitest and Allure onboarding example
+
+#### CASE-001 Produce Allure Evidence through the public integration
+
+The official minimal example installs only public packages, runs Vitest with
+the public Allure reporter and direct Allure API, and produces result JSON with
+managed authoritative Moura labels and the presentation-only Requirement →
+Scenario → Case Behavior hierarchy.
+
+#### CASE-002 Pass strict Moura verification
+
+The generated example Evidence validates and passes `moura check
+--strict-traceability` without relying on Moura's internal dogfooding helpers.
+
+#### CASE-003 Generate Requirement Coverage
+
+The verified example generates a non-empty `moura-report/index.html` containing
+its canonical Case identity.

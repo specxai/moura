@@ -1,0 +1,153 @@
+import {
+  access,
+  cp,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import console from "node:console";
+import { constants } from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+
+import { runCommand } from "./run-command.js";
+
+const root = resolve(import.meta.dirname, "..");
+const evidencePath = join(
+  root,
+  "allure-results",
+  "moura-onboarding-example-result.json",
+);
+
+function run(command: string, args: readonly string[], cwd: string): string {
+  const result = runCommand(command, args, { cwd });
+  return `${result.stdout}${result.stderr}`;
+}
+
+interface AllureResult {
+  readonly status?: unknown;
+  readonly labels?: readonly {
+    readonly name?: unknown;
+    readonly value?: unknown;
+  }[];
+}
+
+function hasLabel(result: AllureResult, name: string, value: string): boolean {
+  return (
+    result.labels?.some(
+      (label) => label.name === name && label.value === value,
+    ) ?? false
+  );
+}
+
+async function verifyExampleResult(project: string): Promise<void> {
+  const resultsDirectory = join(project, "allure-results");
+  const entries = await readdir(resultsDirectory);
+  const resultFiles = entries.filter((entry) => entry.endsWith("-result.json"));
+  if (resultFiles.length !== 1)
+    throw new Error(`Expected one Allure result, found ${resultFiles.length}`);
+
+  const source = join(resultsDirectory, resultFiles[0]!);
+  const result = JSON.parse(await readFile(source, "utf8")) as AllureResult;
+  const expected = [
+    ["moura_traceability", "managed"],
+    ["moura_requirement", "REQ-001"],
+    ["moura_scenario", "SCN-001"],
+    ["moura_case", "CASE-001"],
+    ["moura_layer", "unit"],
+    ["epic", "REQ-001"],
+    ["feature", "SCN-001"],
+    ["story", "CASE-001"],
+  ] as const;
+  if (result.status !== "passed") throw new Error("Example test did not pass");
+  for (const [name, value] of expected) {
+    if (!hasLabel(result, name, value))
+      throw new Error(`Example result is missing ${name}=${value}`);
+  }
+}
+
+const onboardingEvidence = {
+  name: "runs the official Vitest and Allure onboarding flow",
+  status: "passed",
+  labels: [
+    { name: "moura_traceability", value: "managed" },
+    { name: "moura_requirement", value: "REQ-007" },
+    { name: "moura_scenario", value: "SCN-001" },
+    { name: "moura_case", value: "CASE-001" },
+    { name: "moura_requirement", value: "REQ-007" },
+    { name: "moura_scenario", value: "SCN-001" },
+    { name: "moura_case", value: "CASE-002" },
+    { name: "moura_requirement", value: "REQ-007" },
+    { name: "moura_scenario", value: "SCN-001" },
+    { name: "moura_case", value: "CASE-003" },
+    { name: "moura_layer", value: "integration" },
+    { name: "epic", value: "REQ-007" },
+    { name: "feature", value: "SCN-001" },
+    { name: "story", value: "CASE-001" },
+  ],
+};
+
+export async function runOnboardingExample(): Promise<void> {
+  await rm(evidencePath, { force: true });
+  const temporary = await mkdtemp(join(tmpdir(), "moura-onboarding-"));
+  const project = join(temporary, "vitest-minimal");
+  try {
+    await cp(join(root, "examples/vitest-minimal"), project, {
+      recursive: true,
+    });
+    const packed = run("pnpm", ["pack", "--pack-destination", temporary], root);
+    const tarballName = packed.trim().split(/\r?\n/u).at(-1);
+    if (!tarballName) throw new Error("pnpm pack did not report a tarball");
+    const tarball = join(temporary, basename(tarballName));
+    await access(tarball, constants.R_OK);
+
+    const packagePath = join(project, "package.json");
+    const packageJson = JSON.parse(await readFile(packagePath, "utf8")) as {
+      devDependencies: Record<string, string>;
+    };
+    packageJson.devDependencies["@specxai/moura"] = tarball;
+    await writeFile(
+      packagePath,
+      `${JSON.stringify(packageJson, undefined, 2)}\n`,
+    );
+
+    run("pnpm", ["install", "--ignore-workspace"], project);
+    run("pnpm", ["exec", "moura", "validate", "."], project);
+    run("pnpm", ["test"], project);
+    await verifyExampleResult(project);
+    run(
+      "pnpm",
+      ["exec", "moura", "check", ".", "--strict-traceability"],
+      project,
+    );
+    run("pnpm", ["exec", "moura", "report", "."], project);
+
+    const report = await readFile(
+      join(project, "moura-report/index.html"),
+      "utf8",
+    );
+    if (!report.includes("REQ-001/SCN-001/CASE-001"))
+      throw new Error(
+        "Example Requirement Coverage report is empty or incomplete",
+      );
+
+    await mkdir(join(root, "allure-results"), { recursive: true });
+    await writeFile(
+      evidencePath,
+      `${JSON.stringify(onboardingEvidence, undefined, 2)}\n`,
+    );
+    console.log("External-user-style onboarding example passed.");
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
+}
+
+if (
+  process.argv[1] !== undefined &&
+  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
+)
+  await runOnboardingExample();

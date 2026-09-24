@@ -32,3 +32,9 @@ Evidence.
 
 Moura shall be usable from its distributable npm package according to the
 publicly documented traceability metadata and CLI contracts.
+
+## REQ-007 Provide a runnable onboarding path
+
+Moura shall provide an official Vitest and Allure example that an external user
+can execute to validate traceability, produce Evidence, enforce strict reverse
+traceability, and generate Requirement Coverage.

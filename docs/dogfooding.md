@@ -14,6 +14,14 @@ strict check validates and consumes that supplemental Evidence together with
 the dedicated Vitest run. A failed smoke removes its prior result and never
 emits passing Evidence.
 
+The official onboarding example is also outside normal Vitest discovery and is
+run once by the explicit `pnpm test:onboarding` command. Unlike package smoke,
+which verifies the packaged CLI and release metadata, onboarding verification
+installs the example's public dependencies and executes its Vitest + Allure
+configuration, strict check, and Requirement Coverage report end to end. A
+successful run writes integration Evidence for the three observable REQ-007
+onboarding guarantees; a failed run writes none.
+
 ## Mapping rules
 
 - Pass canonical Case IDs such as `REQ-002/SCN-001/CASE-002` to
@@ -56,6 +64,12 @@ The full-suite reverse audit groups Evidence by the behavior under test:
 The separate `scripts/package-smoke.ts` command supplies the integration
 Evidence for the packaged-consumer guarantee; it is not part of the reviewed
 Vitest-suite table above.
+
+Likewise, `scripts/onboarding-example.ts` supplies integration Evidence for
+`REQ-007/SCN-001/CASE-001` through `CASE-003` only after the external-style
+example flow succeeds. Keeping both explicit commands out of default Vitest
+discovery prevents package installation from recurring in `pnpm test`,
+`test:coverage`, or `test:allure`.
 
 Focused tests in the project, check, check-command, and Allure adapter suites
 retain explicit mappings to the narrower existing Cases they directly prove.

@@ -1,0 +1,13 @@
+version: 1
+sources:
+  requirements: [requirements.md]
+  specifications: [specification.md]
+verification:
+  layers: [unit]
+requirements:
+  - id: REQ-001
+    scenarios:
+      - id: SCN-001
+        cases:
+          - id: CASE-001
+            verify: [unit]

@@ -72,3 +72,10 @@ requirements:
         cases:
           - { id: CASE-001, verify: [integration] }
           - { id: CASE-002, verify: [integration] }
+  - id: REQ-007
+    scenarios:
+      - id: SCN-001
+        cases:
+          - { id: CASE-001, verify: [integration] }
+          - { id: CASE-002, verify: [integration] }
+          - { id: CASE-003, verify: [integration] }

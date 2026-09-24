@@ -47,6 +47,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:allure": "tsx scripts/test-allure.ts",
+    "test:onboarding": "tsx scripts/onboarding-example.ts",
     "report:allure": "tsx scripts/report-allure.ts && allure generate allure-results --config allurerc.ts --output allure-report && tsx scripts/verify-allure-report.ts",
     "report:moura": "node dist/cli.js report .",
     "quality:site": "tsx scripts/build-quality-site.ts",

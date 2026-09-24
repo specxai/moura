@@ -12,7 +12,7 @@ node --version
 npm install
 npx moura validate .
 npm test
-test -n "$(find allure-results -name '*-result.json' -print -quit)"
+npm run verify:results
 npx moura check . --strict-traceability
 npx moura report .
 ```
@@ -22,6 +22,9 @@ Then open `moura-report/index.html`. `npm test` runs Vitest; the configured
 `allure-results/`. That directory is Moura's Evidence input. It is **not** an
 Allure HTML report. Generating an optional Allure HTML report is a separate
 Allure operation and is not needed by `moura check` or `moura report`.
+`npm run verify:results` uses Node.js—not platform-specific shell utilities—to
+confirm that result JSON exists and is non-empty, so the same path works on
+Windows, macOS, and Linux.
 
 The project files make every setup step explicit:
 
@@ -36,6 +39,8 @@ The project files make every setup step explicit:
    `allure-results` destination.
 5. [`test/add.test.ts`](test/add.test.ts) adds metadata through the direct Allure
    API and asserts the behavior.
+6. [`scripts/verify-results.mjs`](scripts/verify-results.mjs) provides the
+   dependency-free, cross-platform result-file check used above.
 
 The `moura_*` labels are the authoritative mapping consumed by Moura.
 `moura_traceability=managed` says that the result is intended to be mapped;

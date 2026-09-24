@@ -118,6 +118,7 @@ export async function runOnboardingExample(): Promise<void> {
     run("pnpm", ["install", "--ignore-workspace"], project);
     run("pnpm", ["exec", "moura", "validate", "."], project);
     run("pnpm", ["test"], project);
+    run("pnpm", ["run", "verify:results"], project);
     await verifyExampleResult(project);
     run(
       "pnpm",

@@ -6,6 +6,14 @@ through a declared canonical Case to a Scenario and Requirement. This is a
 repository invariant, not a general rule that rejects unrelated results in a
 user's Allure directory.
 
+The package artifact smoke is deliberately outside normal Vitest discovery. It
+requires a pack and clean npm install, so the explicit `pnpm test:package`
+command runs it once and writes its successful result to `allure-results` as
+Evidence for `REQ-006/SCN-001/CASE-001` and `CASE-002`. The later production
+strict check validates and consumes that supplemental Evidence together with
+the dedicated Vitest run. A failed smoke removes its prior result and never
+emits passing Evidence.
+
 ## Mapping rules
 
 - Pass canonical Case IDs such as `REQ-002/SCN-001/CASE-002` to
@@ -44,6 +52,10 @@ The full-suite reverse audit groups Evidence by the behavior under test:
 | `scripts/build-quality-site.test.ts`      | published quality-site assembly                 | integration |
 | `scripts/ci-summary.test.ts`              | CI Allure result summary                        | unit        |
 | `scripts/run-command.test.ts`             | quality-pipeline command execution              | unit        |
+
+The separate `scripts/package-smoke.ts` command supplies the integration
+Evidence for the packaged-consumer guarantee; it is not part of the reviewed
+Vitest-suite table above.
 
 Focused tests in the project, check, check-command, and Allure adapter suites
 retain explicit mappings to the narrower existing Cases they directly prove.

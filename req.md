@@ -27,3 +27,8 @@ results as verification data.
 Moura shall continuously prove that its own complete Vitest suite emits valid
 traceability metadata and publish verifiable quality reports from that
 Evidence.
+
+## REQ-006 Consume Moura as a published package
+
+Moura shall be usable from its distributable npm package according to the
+publicly documented traceability metadata and CLI contracts.

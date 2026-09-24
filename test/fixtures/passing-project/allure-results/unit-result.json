@@ -2,6 +2,7 @@
   "name": "passing unit evidence",
   "status": "passed",
   "labels": [
+    { "name": "moura_traceability", "value": "managed" },
     { "name": "moura_requirement", "value": "REQ-001" },
     { "name": "moura_scenario", "value": "SCN-001" },
     { "name": "moura_case", "value": "CASE-001" },

@@ -6,35 +6,59 @@ Moura is an open-source, Git-native CLI for checking traceability between requir
 
 ## First run
 
-A Moura project contains `moura.yaml` plus the requirement and specification
-Markdown files named by that manifest. Install the `@specxai/moura` package
-from npm (or use `pnpm dlx @specxai/moura` without a global install), then
-validate the project structure with the `moura` CLI:
+A Moura project contains `moura.yaml` plus the Requirement and Specification
+Markdown files named by that manifest. The runnable
+[`examples/vitest-minimal`](examples/vitest-minimal/README.md) project is the
+shortest complete onboarding path. Follow it from top to bottom to:
+
+1. confirm Node.js 24 or newer;
+2. install Moura as a local development dependency;
+3. create `moura.yaml`;
+4. write Requirement Markdown;
+5. write Specification Markdown;
+6. run `moura validate`;
+7. configure Vitest with the Allure reporter;
+8. add authoritative Moura metadata to a test;
+9. run the test and generate `allure-results` JSON;
+10. run `moura check --strict-traceability`;
+11. run `moura report`; and
+12. open `moura-report/index.html`.
+
+In an existing Node.js 24+ project, install the packages locally and validate
+the structure with:
 
 ```sh
-npm install -g @specxai/moura
-cd my-project
-moura validate
+npm install --save-dev @specxai/moura vitest allure-vitest allure-js-commons
+npx moura validate .
 ```
 
 Tests expose the local IDs in a canonical Case path as separate Allure labels,
 plus one `moura_layer` label:
 
 ```ts
+await allure.label("moura_traceability", "managed");
 await allure.label("moura_requirement", "REQ-001");
 await allure.label("moura_scenario", "SCN-001");
 await allure.label("moura_case", "CASE-001");
 await allure.label("moura_layer", "unit");
 ```
 
+The example shows the direct Allure API and the presentation-only
+`epic`/`feature`/`story` hierarchy in executable context.
+
 After the tests have written `allure-results/`, run `moura check`. Success means there are no error-severity pairs and no malformed or semantically
 invalid evidence. Explicit warning states remain visible but do not fail the check. **`moura check` consumes existing evidence; it does not execute
 the user's tests.** See [the check contract](docs/check.md) for details.
 
 ```sh
-your-test-command
-moura check
+npm test
+npx moura check . --strict-traceability
+npx moura report .
 ```
+
+`MISSING` means a manifest-required Case × layer has no Evidence and is always
+an error. `UNMAPPED` means a managed result lacks authoritative Moura mapping;
+it warns by default and is an error under `--strict-traceability`.
 
 ## Why Moura?
 
@@ -151,6 +175,7 @@ pnpm typecheck
 pnpm test # run the TypeScript test suite with Vitest
 pnpm test:coverage # run tests and create coverage HTML/JSON/LCOV
 pnpm test:allure # run the same suite and verify generated Allure results
+pnpm test:onboarding # install and execute the public Vitest + Allure example
 pnpm report:allure # create static Allure Report 3 HTML from allure-results
 pnpm build && pnpm report:moura # create static Requirement Coverage HTML
 ```

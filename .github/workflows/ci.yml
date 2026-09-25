@@ -63,6 +63,10 @@ jobs:
         if: always() && steps.install.outcome == 'success'
         run: pnpm test:package
 
+      - name: Test Vitest and Allure onboarding example
+        if: always() && steps.install.outcome == 'success'
+        run: pnpm test:onboarding
+
       - name: Validate Moura repository
         if: always() && steps.build.outcome == 'success'
         run: node dist/cli.js validate .
@@ -148,7 +152,7 @@ jobs:
         uses: actions/deploy-pages@v5
 
   windows-smoke:
-    name: Windows report and package smoke
+    name: Windows report, package, and onboarding smoke
     runs-on: windows-latest
     steps:
       - name: Check out repository
@@ -174,3 +178,6 @@ jobs:
 
       - name: Test installed package
         run: pnpm test:package
+
+      - name: Test Vitest and Allure onboarding example
+        run: pnpm test:onboarding

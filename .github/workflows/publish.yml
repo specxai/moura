@@ -4,6 +4,17 @@ on:
   release:
     types:
       - published
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: Exact version already approved and published on npm (X.Y.Z)
+        required: true
+        type: string
+      dist_tag:
+        description: npm dist-tag expected to identify the release
+        required: true
+        default: latest
+        type: string
 
 permissions:
   contents: read
@@ -11,7 +22,7 @@ permissions:
 
 jobs:
   publish:
-    if: github.repository == 'specxai/moura'
+    if: github.repository == 'specxai/moura' && github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
       - name: Check out the released tag
@@ -66,3 +77,41 @@ jobs:
 
       - name: Stage package for human approval
         run: npm stage publish
+
+  registry-smoke:
+    name: Post-publish registry and onboarding verification
+    if: github.repository == 'specxai/moura' && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the released verification harness
+        uses: actions/checkout@v4
+        with:
+          ref: refs/tags/v${{ inputs.release_version }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install verification harness dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify the released registry artifact
+        env:
+          RELEASE_VERSION: ${{ inputs.release_version }}
+          DIST_TAG: ${{ inputs.dist_tag }}
+        run: pnpm test:registry -- "$RELEASE_VERSION" "$DIST_TAG"
+
+      - name: Summarize post-publish failure semantics
+        if: failure()
+        env:
+          RELEASE_VERSION: ${{ inputs.release_version }}
+        run: |
+          echo "::error::npm publication of @specxai/moura@$RELEASE_VERSION is not rolled back; post-publish registry/onboarding verification failed."
+          echo "## Post-publish verification failed" >> "$GITHUB_STEP_SUMMARY"
+          echo "The npm release already exists, but verification of the released registry artifact failed. Follow up on the published release." >> "$GITHUB_STEP_SUMMARY"

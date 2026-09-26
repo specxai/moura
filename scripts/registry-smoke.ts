@@ -35,7 +35,8 @@ export function parseDistTagVersion(value: string, distTag: string): string {
   return tagged;
 }
 
-export function validateDistTag(distTag: string): void {
+export function normalizeDistTag(rawDistTag: string): string {
+  const distTag = rawDistTag.trim();
   try {
     // Match npm CLI's validation rather than maintaining a separate tag grammar.
     npa(`${packageName}@${distTag}`);
@@ -44,6 +45,7 @@ export function validateDistTag(distTag: string): void {
   }
   if (distTag.length === 0 || semver.validRange(distTag) !== null)
     throw new Error(`Invalid npm dist-tag: ${distTag}`);
+  return distTag;
 }
 
 export async function waitForPublishedVersion(
@@ -86,13 +88,13 @@ export async function waitForPublishedVersion(
 
 export async function runRegistrySmoke(
   version: string,
-  distTag = "latest",
+  rawDistTag = "latest",
 ): Promise<void> {
   if (!/^\d+\.\d+\.\d+$/u.test(version))
     throw new Error(
       `Release version must have the form X.Y.Z; received: ${version}`,
     );
-  validateDistTag(distTag);
+  const distTag = normalizeDistTag(rawDistTag);
 
   await waitForPublishedVersion(version, distTag);
   await runOnboardingExample({

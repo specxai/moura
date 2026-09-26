@@ -2,7 +2,7 @@ import { describe, expect, it as vitestIt } from "vitest";
 
 import { mouraEvidenceTest } from "../src/test-support/moura-evidence.js";
 
-import { parseDistTagVersion, validateDistTag } from "./registry-smoke.js";
+import { normalizeDistTag, parseDistTagVersion } from "./registry-smoke.js";
 
 const it = mouraEvidenceTest(vitestIt, ["REQ-006/SCN-001/CASE-002"], "unit");
 
@@ -25,26 +25,33 @@ describe("registry smoke", () => {
     ).toBe("1.2.2");
   });
 
-  it("preserves an uppercase dist-tag for literal-key lookup", () => {
+  it("uses the normalized uppercase dist-tag for literal-key lookup", () => {
+    const distTag = normalizeDistTag(" BETA ");
     expect(
       parseDistTagVersion(
-        JSON.stringify({ latest: "1.2.3", BETA: "1.2.2" }),
-        "BETA",
+        JSON.stringify({ BETA: "1.2.2", " BETA ": "9.9.9" }),
+        distTag,
       ),
     ).toBe("1.2.2");
   });
 
-  it.each(["latest", "release.1", "BETA"])(
-    "accepts npm-compatible dist-tag %s",
-    (distTag) => {
-      expect(() => validateDistTag(distTag)).not.toThrow();
-    },
-  );
+  it.each([
+    ["latest", "latest"],
+    ["release.1", "release.1"],
+    ["release_candidate", "release_candidate"],
+    ["release-candidate", "release-candidate"],
+    ["BETA", "BETA"],
+    ["BETA ", "BETA"],
+    [" BETA", "BETA"],
+    [" BETA ", "BETA"],
+  ])("normalizes npm-compatible dist-tag %j to %j", (raw, normalized) => {
+    expect(normalizeDistTag(raw)).toBe(normalized);
+  });
 
-  it.each(["1.2.3", "v1.4", "foo bar", ""])(
+  it.each(["", "   ", "1.2.3", "v1.4", "foo bar", "@bad"])(
     "rejects invalid npm dist-tag %j",
     (distTag) => {
-      expect(() => validateDistTag(distTag)).toThrow("Invalid npm dist-tag");
+      expect(() => normalizeDistTag(distTag)).toThrow("Invalid npm dist-tag");
     },
   );
 });

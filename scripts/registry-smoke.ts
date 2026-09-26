@@ -3,6 +3,9 @@ import { resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
+import npa from "npm-package-arg";
+import semver from "semver";
+
 import { runOnboardingExample } from "./onboarding-example.js";
 import { runCommand } from "./run-command.js";
 
@@ -30,6 +33,19 @@ export function parseDistTagVersion(value: string, distTag: string): string {
   if (typeof tagged !== "string")
     throw new Error(`npm dist-tag ${distTag} is missing or invalid`);
   return tagged;
+}
+
+export function normalizeDistTag(rawDistTag: string): string {
+  const distTag = rawDistTag.trim();
+  try {
+    // Match npm CLI's validation rather than maintaining a separate tag grammar.
+    npa(`${packageName}@${distTag}`);
+  } catch {
+    throw new Error(`Invalid npm dist-tag: ${distTag}`);
+  }
+  if (distTag.length === 0 || semver.validRange(distTag) !== null)
+    throw new Error(`Invalid npm dist-tag: ${distTag}`);
+  return distTag;
 }
 
 export async function waitForPublishedVersion(
@@ -72,14 +88,13 @@ export async function waitForPublishedVersion(
 
 export async function runRegistrySmoke(
   version: string,
-  distTag = "latest",
+  rawDistTag = "latest",
 ): Promise<void> {
   if (!/^\d+\.\d+\.\d+$/u.test(version))
     throw new Error(
       `Release version must have the form X.Y.Z; received: ${version}`,
     );
-  if (!/^[a-z0-9][a-z0-9._-]*$/u.test(distTag))
-    throw new Error(`Invalid npm dist-tag: ${distTag}`);
+  const distTag = normalizeDistTag(rawDistTag);
 
   await waitForPublishedVersion(version, distTag);
   await runOnboardingExample({

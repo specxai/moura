@@ -1,12 +1,58 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { describe, expect, it as vitestIt } from "vitest";
 
 import { mouraEvidenceTest } from "../src/test-support/moura-evidence.js";
 
+import { verifyRegistryDependency } from "./onboarding-example.js";
 import { normalizeDistTag, parseDistTagVersion } from "./registry-smoke.js";
 
 const it = mouraEvidenceTest(vitestIt, ["REQ-006/SCN-001/CASE-002"], "unit");
 
 describe("registry smoke", () => {
+  it("recognizes an exact registry dependency and rejects a local link", async () => {
+    const project = await mkdtemp(join(tmpdir(), "moura-registry-test-"));
+    try {
+      await writeFile(
+        join(project, "package.json"),
+        `${JSON.stringify({ devDependencies: { "@specxai/moura": "0.1.2" } })}\n`,
+      );
+      await writeFile(
+        join(project, "pnpm-lock.yaml"),
+        [
+          "lockfileVersion: '9.0'",
+          "importers:",
+          "  .:",
+          "    devDependencies:",
+          "      '@specxai/moura':",
+          "        specifier: 0.1.2",
+          "        version: 0.1.2",
+          "packages:",
+          "  '@specxai/moura@0.1.2':",
+          "    resolution:",
+          "      integrity: sha512-registry-content",
+          "",
+        ].join("\n"),
+      );
+
+      await expect(verifyRegistryDependency(project, "0.1.2")).resolves.toBe(
+        undefined,
+      );
+
+      await writeFile(
+        join(project, "package.json"),
+        `${JSON.stringify({ devDependencies: { "@specxai/moura": "@specxai/moura@0.1.2" } })}\n`,
+      );
+      await expect(verifyRegistryDependency(project, "0.1.2")).rejects.toThrow(
+        "dependency value 0.1.2",
+      );
+    } finally {
+      await rm(project, { recursive: true, force: true });
+    }
+  });
+
   it("reads the latest dist-tag from registry metadata", () => {
     expect(
       parseDistTagVersion(

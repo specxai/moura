@@ -20,6 +20,18 @@ function parseNpmString(value: string, description: string): string {
   return parsed;
 }
 
+export function parseDistTagVersion(value: string, distTag: string): string {
+  const parsed: unknown = JSON.parse(value);
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
+    throw new Error(`npm returned invalid dist-tags: ${value}`);
+  const tagged = Object.hasOwn(parsed, distTag)
+    ? (parsed as Record<string, unknown>)[distTag]
+    : undefined;
+  if (typeof tagged !== "string")
+    throw new Error(`npm dist-tag ${distTag} is missing or invalid`);
+  return tagged;
+}
+
 export async function waitForPublishedVersion(
   version: string,
   distTag: string,
@@ -32,9 +44,9 @@ export async function waitForPublishedVersion(
         npmView(`${packageName}@${version}`, "version"),
         "package version",
       );
-      const tagged = parseNpmString(
-        npmView(packageName, `dist-tags.${distTag}`),
-        `${distTag} dist-tag`,
+      const tagged = parseDistTagVersion(
+        npmView(packageName, "dist-tags"),
+        distTag,
       );
       if (published !== version)
         throw new Error(

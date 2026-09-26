@@ -248,6 +248,8 @@ a non-empty Requirement Coverage report without importing repository source.
 
 The package artifact retains the declared package name, version, and `moura`
 binary mapping, and the installed CLI reports the same version as the artifact.
+Registry release verification reads the selected npm dist-tag as a literal key,
+including when its valid name contains periods.
 
 ## REQ-007
 

@@ -98,7 +98,7 @@ export async function runRegistrySmoke(
 
   await waitForPublishedVersion(version, distTag);
   await runOnboardingExample({
-    mouraPackageSpec: `${packageName}@${version}`,
+    registryVersion: version,
     expectedVersion: version,
     writeDogfoodingEvidence: false,
   });
@@ -111,8 +111,10 @@ if (
   process.argv[1] !== undefined &&
   import.meta.url === pathToFileURL(resolve(process.argv[1])).href
 ) {
-  const version = process.argv[2];
+  const args = process.argv.slice(2);
+  if (args[0] === "--") args.shift();
+  const version = args[0];
   if (version === undefined)
     throw new Error("Usage: registry-smoke.ts <release-version> [dist-tag]");
-  await runRegistrySmoke(version, process.argv[3]);
+  await runRegistrySmoke(version, args[1]);
 }

@@ -29,6 +29,12 @@ importers:
       "@types/node":
         specifier: ^24.0.0
         version: 24.13.3
+      "@types/npm-package-arg":
+        specifier: ^6.1.4
+        version: 6.1.4
+      "@types/semver":
+        specifier: ^7.8.0
+        version: 7.8.0
       "@vitest/coverage-v8":
         specifier: ^5.0.0
         version: 5.0.0(vitest@5.0.0)
@@ -44,9 +50,15 @@ importers:
       eslint:
         specifier: ^10.10.0
         version: 10.10.0(jiti@2.7.0)
+      npm-package-arg:
+        specifier: ^14.0.0
+        version: 14.0.0
       prettier:
         specifier: ^3.9.6
         version: 3.9.6
+      semver:
+        specifier: ^7.8.5
+        version: 7.8.5
       tsx:
         specifier: ^4.23.13
         version: 4.23.13
@@ -868,6 +880,18 @@ packages:
     resolution:
       {
         integrity: sha512-Dh8vAsV36ig5wa9OX4pXvMc9D3Veibfw2wix0CUwYODLD8nkj9UsLjASr49nPg+2eKzxhBV+v7L8pXvT4e639Q==,
+      }
+
+  "@types/npm-package-arg@6.1.4":
+    resolution:
+      {
+        integrity: sha512-vDgdbMy2QXHnAruzlv68pUtXCjmqUk3WrBAsRboRovsOmxbfn/WiYCjmecyKjGztnMps5dWp4Uq2prp+Ilo17Q==,
+      }
+
+  "@types/semver@7.8.0":
+    resolution:
+      {
+        integrity: sha512-1mAINjtQCXXeLkJ9ehXkwOcBpqtLxiVtKhpUf83DdRNdQKV0iXZpaHYqRr7nj+wvxuJzoAmAwXI+sCNMv1CzLQ==,
       }
 
   "@types/trusted-types@2.0.7":
@@ -1814,6 +1838,13 @@ packages:
         integrity: sha512-p/LgFzRN5FeoD3DLS6bkUapeye6E4SI6yJs6KetENd18S+FBthqYq2amJUWpt5z0EQwwHemidjY5OqJGEKm5uA==,
       }
 
+  hosted-git-info@10.1.1:
+    resolution:
+      {
+        integrity: sha512-DeOnSPAvOndYKfw075gt8yZzQ7S2hNztw34zBTfhIzLhmBTswIBg5/y+pqu/VD5cYWm5goAFTusDmUEmKZ0PEQ==,
+      }
+    engines: { node: ^22.22.2 || ^24.15.0 || >=26.0.0 }
+
   https-proxy-agent@5.0.1:
     resolution:
       {
@@ -2378,6 +2409,13 @@ packages:
       }
     engines: { node: ">=0.10.0" }
 
+  npm-package-arg@14.0.0:
+    resolution:
+      {
+        integrity: sha512-69XQh3k+dtGa1p+7RaR57IuG3rCko96xr/nUfN4yDYBXbTYICiWcOpsFKLN2GtGE9cyIljE+f1exnaYt9MvM+Q==,
+      }
+    engines: { node: ^22.22.2 || ^24.15.0 || >=26.0.0 }
+
   obug@2.2.1:
     resolution:
       {
@@ -2513,6 +2551,13 @@ packages:
       }
     engines: { node: ">=14" }
     hasBin: true
+
+  proc-log@7.0.0:
+    resolution:
+      {
+        integrity: sha512-FYgfaA69XZ93zaXLoMNQ+ViDXGGBgR8aLh03txzcFhV+9xOXx7+8DLCULrKKpR9+GsH9ZfHm82aSUPpozX0Ztg==,
+      }
+    engines: { node: ^22.22.2 || ^24.15.0 || >=26.0.0 }
 
   process@0.11.10:
     resolution:
@@ -2806,6 +2851,13 @@ packages:
       {
         integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==,
       }
+
+  validate-npm-package-name@8.0.0:
+    resolution:
+      {
+        integrity: sha512-SCv6OOV6Xj2/3cXy3dGmADluJTNcL3o7hZAglNPTe+WYuEuvxgJzxPrSDLZhF+CwyQOubqgecjMmTJGMVLWjYQ==,
+      }
+    engines: { node: ^22.22.2 || ^24.15.0 || >=26.0.0 }
 
   vfile-message@4.0.3:
     resolution:
@@ -3530,6 +3582,10 @@ snapshots:
     dependencies:
       undici-types: 7.18.2
 
+  "@types/npm-package-arg@6.1.4": {}
+
+  "@types/semver@7.8.0": {}
+
   "@types/trusted-types@2.0.7":
     optional: true
 
@@ -4174,6 +4230,10 @@ snapshots:
 
   hookified@2.2.0: {}
 
+  hosted-git-info@10.1.1:
+    dependencies:
+      lru-cache: 11.5.2
+
   https-proxy-agent@5.0.1:
     dependencies:
       agent-base: 6.0.2
@@ -4514,6 +4574,13 @@ snapshots:
 
   normalize-path@3.0.0: {}
 
+  npm-package-arg@14.0.0:
+    dependencies:
+      hosted-git-info: 10.1.1
+      proc-log: 7.0.0
+      semver: 7.8.5
+      validate-npm-package-name: 8.0.0
+
   obug@2.2.1: {}
 
   open@11.0.3:
@@ -4578,6 +4645,8 @@ snapshots:
   prelude-ls@1.2.1: {}
 
   prettier@3.9.6: {}
+
+  proc-log@7.0.0: {}
 
   process@0.11.10: {}
 
@@ -4758,6 +4827,8 @@ snapshots:
   uri-js@4.4.1:
     dependencies:
       punycode: 2.3.1
+
+  validate-npm-package-name@8.0.0: {}
 
   vfile-message@4.0.3:
     dependencies:

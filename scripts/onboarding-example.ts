@@ -13,6 +13,7 @@ import { constants } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import YAML from "yaml";
 
 import { runCommand } from "./run-command.js";
 
@@ -22,6 +23,69 @@ const evidencePath = join(
   "allure-results",
   "moura-onboarding-example-result.json",
 );
+
+export interface OnboardingExampleOptions {
+  /** An exact registry version. Omit only for the existing local-pack smoke. */
+  readonly registryVersion?: string;
+  readonly expectedVersion?: string;
+  readonly writeDogfoodingEvidence?: boolean;
+}
+
+interface ConsumerPackageJson {
+  readonly devDependencies: Record<string, string>;
+}
+
+interface PnpmLockfile {
+  readonly importers?: Record<
+    string,
+    {
+      readonly devDependencies?: Record<
+        string,
+        { readonly specifier?: unknown; readonly version?: unknown }
+      >;
+    }
+  >;
+  readonly packages?: Record<
+    string,
+    { readonly resolution?: { readonly integrity?: unknown } }
+  >;
+}
+
+const packageName = "@specxai/moura";
+
+export async function verifyRegistryDependency(
+  project: string,
+  expectedVersion: string,
+): Promise<void> {
+  const packageJson = JSON.parse(
+    await readFile(join(project, "package.json"), "utf8"),
+  ) as ConsumerPackageJson;
+  const dependencyValue = packageJson.devDependencies[packageName];
+  if (dependencyValue !== expectedVersion)
+    throw new Error(
+      `Expected ${packageName} dependency value ${expectedVersion}, found ${dependencyValue ?? "missing"}`,
+    );
+
+  const lockfile = YAML.parse(
+    await readFile(join(project, "pnpm-lock.yaml"), "utf8"),
+  ) as PnpmLockfile;
+  const lockedDependency =
+    lockfile.importers?.["."]?.devDependencies?.[packageName];
+  if (
+    lockedDependency?.specifier !== expectedVersion ||
+    lockedDependency.version !== expectedVersion
+  )
+    throw new Error(
+      `${packageName} did not resolve to exact registry version ${expectedVersion}`,
+    );
+
+  const packageKey = `${packageName}@${expectedVersion}`;
+  const integrity = lockfile.packages?.[packageKey]?.resolution?.integrity;
+  if (typeof integrity !== "string" || !integrity.startsWith("sha512-"))
+    throw new Error(
+      `${packageKey} is missing registry integrity metadata in pnpm-lock.yaml`,
+    );
+}
 
 function run(command: string, args: readonly string[], cwd: string): string {
   const result = runCommand(command, args, { cwd });
@@ -140,7 +204,11 @@ const onboardingEvidence = {
   ],
 };
 
-export async function runOnboardingExample(): Promise<void> {
+export async function runOnboardingExample({
+  registryVersion,
+  expectedVersion,
+  writeDogfoodingEvidence = true,
+}: OnboardingExampleOptions = {}): Promise<void> {
   await rm(evidencePath, { force: true });
   const temporary = await mkdtemp(join(tmpdir(), "moura-onboarding-"));
   const project = join(temporary, "vitest-minimal");
@@ -148,23 +216,43 @@ export async function runOnboardingExample(): Promise<void> {
     await cp(join(root, "examples/vitest-minimal"), project, {
       recursive: true,
     });
-    const packed = run("pnpm", ["pack", "--pack-destination", temporary], root);
-    const tarballName = packed.trim().split(/\r?\n/u).at(-1);
-    if (!tarballName) throw new Error("pnpm pack did not report a tarball");
-    const tarball = join(temporary, basename(tarballName));
-    await access(tarball, constants.R_OK);
+    let dependencyValue = registryVersion;
+    if (dependencyValue === undefined) {
+      const packed = run(
+        "pnpm",
+        ["pack", "--pack-destination", temporary],
+        root,
+      );
+      const tarballName = packed.trim().split(/\r?\n/u).at(-1);
+      if (!tarballName) throw new Error("pnpm pack did not report a tarball");
+      dependencyValue = join(temporary, basename(tarballName));
+      await access(dependencyValue, constants.R_OK);
+    }
 
     const packagePath = join(project, "package.json");
-    const packageJson = JSON.parse(await readFile(packagePath, "utf8")) as {
-      devDependencies: Record<string, string>;
-    };
-    packageJson.devDependencies["@specxai/moura"] = tarball;
+    const packageJson = JSON.parse(
+      await readFile(packagePath, "utf8"),
+    ) as ConsumerPackageJson;
+    packageJson.devDependencies[packageName] = dependencyValue;
     await writeFile(
       packagePath,
       `${JSON.stringify(packageJson, undefined, 2)}\n`,
     );
 
     run("pnpm", ["install", "--ignore-workspace"], project);
+    if (registryVersion !== undefined)
+      await verifyRegistryDependency(project, registryVersion);
+    if (expectedVersion !== undefined) {
+      const version = run(
+        "pnpm",
+        ["exec", "moura", "--version"],
+        project,
+      ).trim();
+      if (version !== `moura ${expectedVersion}`)
+        throw new Error(
+          `Installed CLI version (${version}) does not match released version (${expectedVersion})`,
+        );
+    }
     run("pnpm", ["exec", "moura", "validate", "."], project);
 
     await seedStaleExampleEvidence(project);
@@ -176,11 +264,15 @@ export async function runOnboardingExample(): Promise<void> {
     run("pnpm", ["test"], project);
     run("pnpm", ["run", "verify:results"], project);
     await verifyExampleResult(project);
-    run(
+    const checkOutput = run(
       "pnpm",
       ["exec", "moura", "check", ".", "--strict-traceability"],
       project,
     );
+    if (/\b(?:MISSING|UNMAPPED)\b|Evidence mapping error/iu.test(checkOutput))
+      throw new Error(
+        `Unexpected strict traceability diagnostic:\n${checkOutput}`,
+      );
     run("pnpm", ["exec", "moura", "report", "."], project);
 
     const report = await readFile(
@@ -192,11 +284,13 @@ export async function runOnboardingExample(): Promise<void> {
         "Example Requirement Coverage report is empty or incomplete",
       );
 
-    await mkdir(join(root, "allure-results"), { recursive: true });
-    await writeFile(
-      evidencePath,
-      `${JSON.stringify(onboardingEvidence, undefined, 2)}\n`,
-    );
+    if (writeDogfoodingEvidence) {
+      await mkdir(join(root, "allure-results"), { recursive: true });
+      await writeFile(
+        evidencePath,
+        `${JSON.stringify(onboardingEvidence, undefined, 2)}\n`,
+      );
+    }
     console.log("External-user-style onboarding example passed.");
   } finally {
     await rm(temporary, { recursive: true, force: true });

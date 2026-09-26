@@ -39,6 +39,15 @@ authorization.
    package checks, and stages the npm publication.
 7. Review and approve the staged publication on npm. The package's
    `publishConfig.access` makes the scoped package public.
+8. After npm confirms publication, manually run the **Publish to npm** workflow
+   with `release_version` set to the exact `X.Y.Z` version and `dist_tag` set to
+   its intended tag (normally `latest`). This separate post-publish job waits a
+   bounded time for registry propagation, installs only
+   `@specxai/moura@X.Y.Z` from npm in a clean copy of the official onboarding
+   example, and verifies its CLI version, Evidence metadata, strict check, and
+   non-empty Requirement Coverage report. A failure is deliberately reported
+   as follow-up work on an already-published release; it does not imply that npm
+   publication was rolled back.
 
 The npm package must have a stage-only Trusted Publisher configured for the
 `specxai/moura` repository and `.github/workflows/publish.yml`. This one-time
@@ -52,6 +61,12 @@ directory. Its fixture uses the same managed, separate-local-ID metadata
 contract documented in the README. On success it writes supplemental Allure
 Evidence for the package-consumption Cases; normal Vitest, coverage, and Allure
 suite discovery do not execute it. It does not publish anything.
+
+The post-publish registry smoke complements rather than replaces that check.
+Its package spec is always the exact released version, and it has no workspace,
+`dist`, packed-tarball, or other local fallback. The registry version and
+requested dist-tag are both polled with finite backoff before the same official
+Vitest + Allure onboarding harness is run.
 
 The repository must have **Settings → Pages → Build and deployment → Source**
 set to **GitHub Actions**. This one-time repository setting is required before

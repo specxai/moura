@@ -1,7 +1,7 @@
 {
-  "version": "0.3.1",
+  "version": "0.3.2",
   "files": {
-    "method/review.md": "c92adeab5058a3b690084572bc7721ae1c7d89838832ae5c54d129390d0d3ad5",
+    "method/review.md": "8432d598ea2bcf2c26d090bf4f56aa60387990cecc9cd7afaa6f1a2ed2fe603a",
     "method/risk-routing.md": "37ec9337dfcf08ac8c929963cfce5135e59c576568d6364abc4eb52edf66fd0a",
     "method/strategist.md": "6b2a143dfd8c28b3d70c7a28275e2b391ae54e822e7060b9c8165783b3306eda",
     "method/workflow.md": "8fe1d6d3e416d55cd63bbd598bcaeba09426d371fd1241af96cae75e3f26f036"

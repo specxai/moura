@@ -91,6 +91,112 @@ describe("requirement coverage report", () => {
     expect(first).toContain("0 / 1 (0%)");
   });
 
+  it("links each Requirement to its encoded configured source and heading", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "moura-report-test-"));
+    directories.push(directory);
+    await mkdir(join(directory, "requirements & notes"), { recursive: true });
+    await mkdir(join(directory, "allure-results"));
+    await Promise.all([
+      writeFile(
+        join(directory, "moura.yaml"),
+        `version: 1
+sources:
+  requirements: ["requirements & notes/first file.md", "requirements & notes/second.md"]
+  specifications: [spec.md]
+verification: { layers: [unit] }
+requirements:
+  - id: REQ-A
+    scenarios:
+      - id: S
+        cases: [{ id: C, verify: [unit] }]
+  - id: REQ-B
+    scenarios:
+      - id: S
+        cases: [{ id: C, verify: [unit] }]
+`,
+      ),
+      writeFile(
+        join(directory, "requirements & notes", "first file.md"),
+        "intro\r## REQ-A Safety & access\r",
+      ),
+      writeFile(
+        join(directory, "requirements & notes", "second.md"),
+        "## REQ-B Überprüfung\n",
+      ),
+      writeFile(
+        join(directory, "spec.md"),
+        "## REQ-A\n### S\n#### C\n## REQ-B\n### S\n#### C\n",
+      ),
+    ]);
+
+    const result = await reportProjectDirectory(directory);
+    expect(result.exitCode).toBe(0);
+    const html = await readFile(result.outputPath!, "utf8");
+    expect(html).toContain(
+      '<h2><a href="./sources/source-726571756972656d656e74732026206e6f7465732f66697273742066696c652e6d64.html#requirement-52-45-51-2d-41">REQ-A</a></h2>',
+    );
+    expect(html).toContain(
+      '<h2><a href="./sources/source-726571756972656d656e74732026206e6f7465732f7365636f6e642e6d64.html#requirement-52-45-51-2d-42">REQ-B</a></h2>',
+    );
+    expect(html).toContain("Requirements</strong><span>0 / 2 (0%)");
+    expect(html).toContain("MISSING");
+    const sourceHtml = await readFile(
+      join(
+        directory,
+        "moura-report/sources/source-726571756972656d656e74732026206e6f7465732f66697273742066696c652e6d64.html",
+      ),
+      "utf8",
+    );
+    expect(sourceHtml).toContain(
+      '<span class="requirement" id="requirement-52-45-51-2d-41">## REQ-A Safety &amp; access</span>',
+    );
+    expect(sourceHtml).toContain('href="../index.html"');
+  });
+
+  it("bundles a source configured with Windows path separators", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "moura-report-test-"));
+    directories.push(directory);
+    await mkdir(join(directory, "allure-results"));
+    if (process.platform === "win32") await mkdir(join(directory, "docs"));
+    await Promise.all([
+      writeFile(
+        join(directory, "moura.yaml"),
+        `version: 1
+sources: { requirements: ['docs\\req.md'], specifications: [spec.md] }
+verification: { layers: [unit] }
+requirements:
+  - id: R
+    scenarios:
+      - id: S
+        cases: [{ id: C, verify: [unit] }]
+`,
+      ),
+      writeFile(
+        process.platform === "win32"
+          ? join(directory, "docs", "req.md")
+          : join(directory, "docs\\req.md"),
+        "## R\n",
+      ),
+      writeFile(join(directory, "spec.md"), "## R\n### S\n#### C\n"),
+    ]);
+
+    const result = await reportProjectDirectory(directory);
+    expect(result.exitCode).toBe(0);
+    const html = await readFile(result.outputPath!, "utf8");
+    expect(html).toContain(
+      "./sources/source-646f63735c7265712e6d64.html#requirement-52",
+    );
+    await expect(
+      readFile(
+        join(
+          directory,
+          "moura-report/sources/source-646f63735c7265712e6d64.html",
+        ),
+        "utf8",
+      ),
+    ).resolves.toContain('id="requirement-52"');
+  });
+
   it("rejects an invalid project without writing a report", async () => {
     const directory = await mkdtemp(join(tmpdir(), "moura-report-test-"));
     directories.push(directory);

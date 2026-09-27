@@ -134,6 +134,17 @@ duplicated, or inconsistent with the authoritative metadata.
 
 After evidence exists, `moura report [directory]` writes `<project>/moura-report/index.html`. The static report consumes the same validated manifest, normalized evidence, and `checkVerification()` result as `moura check`; it does not parse Allure or reproduce pair-status precedence.
 
+Requirement IDs in the hierarchy link to an HTML view of the configured
+Requirement Markdown file at the exact heading that declares them. Moura puts
+these escaped, read-only source snapshots under `moura-report/sources/`; their
+content comes from the same validated files used for the report. Bundling the
+views makes heading navigation work from a local `file:` report and when only
+`moura-report/` is published by any static host. The generated links and anchor
+IDs are provider-neutral and do not depend on a repository URL or a hosting
+service's Markdown slug rules. Edit the configured Markdown source, not its
+generated snapshot; the whole `moura-report/` directory is replaced on the
+next run.
+
 `moura-report/` is generated output owned and managed by Moura. Running `moura report` may delete and recreate the entire directory, so do not place files there that you want to preserve.
 Moura assumes no concurrently malicious process mutates the validated project directory while report output is being recreated; defending against such races is outside its filesystem threat model.
 

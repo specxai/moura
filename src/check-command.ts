@@ -8,6 +8,7 @@ import {
 import { checkVerification } from "./check.js";
 import type { EvidenceIssue, VerificationProjectCheckResult } from "./check.js";
 import type { MouraManifest } from "./manifest.js";
+import type { RequirementSourceLocation } from "./markdown.js";
 import { safeDisplayString } from "./id.js";
 import { loadProjectDirectory } from "./project.js";
 
@@ -60,6 +61,11 @@ export type ProjectCheckEvaluation =
   | {
       readonly kind: "checked";
       readonly manifest: MouraManifest;
+      readonly requirementLocations: ReadonlyMap<
+        string,
+        RequirementSourceLocation
+      >;
+      readonly requirementSources: ReadonlyMap<string, string>;
       readonly check: VerificationProjectCheckResult;
       readonly adapterIssues: EvidenceAdapterResult["issues"];
       readonly traceabilityDiagnostics: readonly TraceabilityDiagnostic[];
@@ -90,6 +96,8 @@ export async function evaluateProjectDirectory(
   return {
     kind: "checked",
     manifest: project.manifest,
+    requirementLocations: project.requirementLocations ?? new Map(),
+    requirementSources: project.requirementSources ?? new Map(),
     check: checkVerification(project.manifest, adapted.evidence),
     adapterIssues: adapted.issues,
     traceabilityDiagnostics,

@@ -19,6 +19,9 @@ on:
 jobs:
   publish:
     if: github.repository == 'specxai/moura' && github.event_name == 'release'
+    outputs:
+      release_version: ${{ steps.release-metadata.outputs.release_version }}
+      dist_tag: ${{ steps.release-metadata.outputs.dist_tag }}
     permissions:
       contents: read
       id-token: write
@@ -39,7 +42,7 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
 
-      - name: Install and verify staged publishing toolchain
+      - name: Install and verify publishing toolchain
         run: |
           npm install --global npm@11.15.0
           test "$(npm --version)" = "11.15.0"
@@ -47,6 +50,7 @@ jobs:
           npm --version
 
       - name: Verify release tag matches package version
+        id: release-metadata
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
@@ -62,6 +66,9 @@ jobs:
             exit 1
           fi
 
+          echo "release_version=$release_version" >> "$GITHUB_OUTPUT"
+          echo "dist_tag=latest" >> "$GITHUB_OUTPUT"
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -74,12 +81,19 @@ jobs:
       - name: Check package contents
         run: pnpm pack --dry-run
 
-      - name: Stage package for human approval
-        run: npm stage publish
+      - name: Publish package
+        env:
+          DIST_TAG: ${{ steps.release-metadata.outputs.dist_tag }}
+        run: npm publish --tag "$DIST_TAG"
 
   registry-smoke:
     name: Post-publish registry and onboarding verification
-    if: github.repository == 'specxai/moura' && github.event_name == 'workflow_dispatch'
+    needs: publish
+    if: >-
+      always() &&
+      github.repository == 'specxai/moura' &&
+      ((github.event_name == 'release' && needs.publish.result == 'success') ||
+      github.event_name == 'workflow_dispatch')
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -87,7 +101,7 @@ jobs:
       - name: Check out the released verification harness
         uses: actions/checkout@v4
         with:
-          ref: refs/tags/v${{ inputs.release_version }}
+          ref: refs/tags/v${{ github.event_name == 'release' && needs.publish.outputs.release_version || inputs.release_version }}
 
       - name: Enable Corepack
         run: corepack enable
@@ -104,14 +118,14 @@ jobs:
 
       - name: Verify the released registry artifact
         env:
-          RELEASE_VERSION: ${{ inputs.release_version }}
-          DIST_TAG: ${{ inputs.dist_tag }}
+          RELEASE_VERSION: ${{ github.event_name == 'release' && needs.publish.outputs.release_version || inputs.release_version }}
+          DIST_TAG: ${{ github.event_name == 'release' && needs.publish.outputs.dist_tag || inputs.dist_tag }}
         run: pnpm test:registry -- "$RELEASE_VERSION" "$DIST_TAG"
 
       - name: Summarize post-publish failure semantics
         if: failure()
         env:
-          RELEASE_VERSION: ${{ inputs.release_version }}
+          RELEASE_VERSION: ${{ github.event_name == 'release' && needs.publish.outputs.release_version || inputs.release_version }}
         run: |
           echo "::error::npm publication of @specxai/moura@$RELEASE_VERSION is not rolled back; post-publish registry/onboarding verification failed."
           echo "## Post-publish verification failed" >> "$GITHUB_STEP_SUMMARY"

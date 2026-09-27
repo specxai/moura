@@ -36,23 +36,28 @@ authorization.
    with the matching `vX.Y.Z` tag.
 6. Create and publish a GitHub Release from that tag. The publishing workflow
    checks out the released tag, verifies it against `package.json`, repeats the
-   package checks, and stages the npm publication.
-7. Review and approve the staged publication on npm. The package's
-   `publishConfig.access` makes the scoped package public.
-8. After npm confirms publication, manually run the **Publish to npm** workflow
-   with `release_version` set to the exact `X.Y.Z` version and `dist_tag` set to
-   its intended tag (normally `latest`). This separate post-publish job waits a
-   bounded time for registry propagation, installs only
-   `@specxai/moura@X.Y.Z` from npm in a clean copy of the official onboarding
-   example, and verifies its CLI version, Evidence metadata, strict check, and
-   non-empty Requirement Coverage report. A failure is deliberately reported
-   as follow-up work on an already-published release; it does not imply that npm
-   publication was rolled back.
+   package checks, and publishes the package with the `latest` dist-tag. After
+   `npm publish` succeeds, a separate least-privilege job automatically runs the
+   post-publish registry smoke for the exact version derived from the release
+   tag and verified against `package.json`.
+7. The post-publish job waits a bounded time for registry propagation, installs
+   only `@specxai/moura@X.Y.Z` from npm in a clean copy of the official
+   onboarding example, and verifies its CLI version, Evidence metadata, strict
+   check, and non-empty Requirement Coverage report. A failure is deliberately
+   reported as follow-up work on an already-published release; it does not imply
+   that npm publication was rolled back.
 
-The npm package must have a stage-only Trusted Publisher configured for the
+For investigation, a transient registry propagation problem, or another
+recheck of an already-published release, manually run the **Publish to npm**
+workflow with `release_version` set to the exact `X.Y.Z` version and `dist_tag`
+set to its intended tag. Manual dispatch skips publication and runs the same
+registry smoke implementation.
+
+The npm package must have a Trusted Publisher configured for the
 `specxai/moura` repository and `.github/workflows/publish.yml`. This one-time
 npm setting supplies short-lived OIDC credentials; the workflow does not use an
-`NPM_TOKEN`.
+`NPM_TOKEN`. Only the publishing job receives `id-token: write`; registry
+verification receives read-only repository access.
 
 The package smoke test creates a tarball, installs it in a temporary consumer
 project, invokes the installed `moura` binary for version/help/validate/check/

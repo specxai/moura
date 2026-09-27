@@ -20,9 +20,17 @@ export interface MarkdownDocument {
   readonly requirements: readonly MarkdownRequirement[];
 }
 
+/** Presentation metadata for a Requirement declaration; it is not identity. */
+export interface RequirementSourceLocation {
+  readonly source: string;
+  readonly anchor: string;
+  readonly line: number;
+}
+
 interface Heading {
   readonly depth: number;
   readonly token: string;
+  readonly line: number;
 }
 
 const RESERVED_ID_PREFIXES = ["REQ-", "SCN-", "CASE-"] as const;
@@ -44,6 +52,24 @@ export function parseRequirementMarkdown(
     )
     .map(({ token }) => token);
   return { value: requirements, errors: [] };
+}
+
+export function locateRequirementMarkdown(
+  text: string,
+  source: string,
+  manifest: MouraManifest,
+): ReadonlyMap<string, RequirementSourceLocation> {
+  const requirementIds = new Set(
+    manifest.requirements.map((item) => item.localId),
+  );
+  return new Map(
+    headings(text)
+      .filter(({ token }) => requirementIds.has(token))
+      .map(({ token, line }) => [
+        token,
+        { source, anchor: requirementAnchor(token), line },
+      ]),
+  );
 }
 
 export function parseSpecificationMarkdown(
@@ -145,20 +171,27 @@ function headings(text: string): Heading[] {
   });
 }
 
-function atxHeading(node: MdastHeading, text: string): Heading | undefined {
+function atxHeading(node: MdastHeading, markdown: string): Heading | undefined {
   const start = node.position?.start.offset;
   const end = node.position?.end.offset;
   if (start === undefined || end === undefined) return undefined;
 
   // Use the original source for Moura's token rather than imposing an ID
   // alphabet here. remark-parse remains responsible for Markdown syntax.
-  const source = text.slice(start, end);
+  const source = markdown.slice(start, end);
   const marker = new RegExp(`^#{${node.depth}}(?:[\\t ]+|$)`, "u").exec(source);
   if (!marker) return undefined; // Excludes Setext headings.
   const token = /^[\p{White_Space}]*([^\p{White_Space}]+)/u.exec(
     source.slice(marker[0].length),
   )?.[1];
-  return token ? { depth: node.depth, token } : undefined;
+  if (!token) return undefined;
+  return { depth: node.depth, token, line: node.position!.start.line };
+}
+
+function requirementAnchor(value: string): string {
+  return `requirement-${Array.from(value, (character) =>
+    character.codePointAt(0)!.toString(16),
+  ).join("-")}`;
 }
 
 function classify(

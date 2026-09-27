@@ -3,8 +3,10 @@ import { isAbsolute, relative, resolve, sep, win32 } from "node:path";
 
 import { parseManifest, type MouraManifest } from "./manifest.js";
 import {
+  locateRequirementMarkdown,
   parseRequirementMarkdown,
   parseSpecificationMarkdown,
+  type RequirementSourceLocation,
 } from "./markdown.js";
 import {
   error,
@@ -22,6 +24,13 @@ export interface ProjectInput {
 export interface LoadedProjectResult extends ValidationResult {
   /** Present only when the complete project is structurally valid. */
   readonly manifest?: MouraManifest;
+  /** Source metadata for report navigation; never part of Requirement identity. */
+  readonly requirementLocations?: ReadonlyMap<
+    string,
+    RequirementSourceLocation
+  >;
+  /** Validated source contents used to build provider-neutral report pages. */
+  readonly requirementSources?: ReadonlyMap<string, string>;
 }
 
 /** Reusable, deterministic validation entry point for in-memory project files. */
@@ -173,7 +182,23 @@ export async function loadProjectDirectory(
       specificationSources,
     }),
   );
-  return errors.length === 0 ? { manifest: parsed.value, errors } : { errors };
+  if (errors.length > 0) return { errors };
+  const requirementLocations = new Map<string, RequirementSourceLocation>();
+  for (const source of parsed.value.sources.requirements) {
+    const text = requirementSources.get(source)!;
+    for (const [id, location] of locateRequirementMarkdown(
+      text,
+      source,
+      parsed.value,
+    ))
+      requirementLocations.set(id, location);
+  }
+  return {
+    manifest: parsed.value,
+    requirementLocations,
+    requirementSources,
+    errors,
+  };
 }
 
 async function load(

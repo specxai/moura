@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -22,6 +23,7 @@ import {
 } from "./coverage.js";
 import { canonicalId } from "./id.js";
 import type { MouraManifest } from "./manifest.js";
+import type { RequirementSourceLocation } from "./markdown.js";
 import type { VerificationLayer } from "./model.js";
 
 export interface ReportCommandOutput {
@@ -46,7 +48,10 @@ export async function reportProjectDirectory(
         evaluation.check,
         evaluation.adapterIssues,
         evaluation.traceabilityDiagnostics,
+        evaluation.requirementLocations,
       ),
+      evaluation.requirementSources,
+      evaluation.requirementLocations,
     );
   } catch (error) {
     return {
@@ -81,11 +86,22 @@ export async function reportProjectDirectory(
 async function writeReportFile(
   directory: string,
   contents: string,
+  requirementSources: ReadonlyMap<string, string>,
+  requirementLocations: ReadonlyMap<string, RequirementSourceLocation>,
 ): Promise<string> {
   const projectRoot = await realpath(resolve(directory));
   const outputDirectory = resolve(projectRoot, "moura-report");
   await rm(outputDirectory, { recursive: true, force: true });
   await mkdir(outputDirectory);
+  const sourceDirectory = resolve(outputDirectory, "sources");
+  await mkdir(sourceDirectory);
+  for (const [source, markdown] of requirementSources) {
+    await writeFile(
+      resolve(sourceDirectory, requirementSourceFilename(source)),
+      renderRequirementSource(source, markdown, requirementLocations),
+      "utf8",
+    );
+  }
   const outputPath = resolve(outputDirectory, "index.html");
   await writeFile(outputPath, contents, "utf8");
   return outputPath;
@@ -100,6 +116,10 @@ export function renderCoverageReport(
   check: VerificationProjectCheckResult,
   adapterIssues: readonly EvidenceAdapterIssue[] = [],
   traceabilityDiagnostics: readonly import("./check-command.js").TraceabilityDiagnostic[] = [],
+  requirementLocations: ReadonlyMap<
+    string,
+    RequirementSourceLocation
+  > = new Map(),
 ): string {
   const summary = summarizeCoverage(manifest, check);
   const entries = new Map<
@@ -156,7 +176,13 @@ export function renderCoverageReport(
           return `<section><h3>${renderText(canonicalId([requirement, scenario]))}</h3>${cases}</section>`;
         })
         .join("");
-      return `<article><h2>${renderText(canonicalId([requirement]))}</h2>${scenarios}</article>`;
+      const requirementId = canonicalId([requirement]);
+      const location = requirementLocations.get(requirementId);
+      const label = renderText(requirementId);
+      const heading = location
+        ? `<a href="${escapeHtml(requirementSourceHref(location))}">${label}</a>`
+        : label;
+      return `<article><h2>${heading}</h2>${scenarios}</article>`;
     })
     .join("");
   const issues = [
@@ -201,4 +227,38 @@ function escapeHtml(value: string): string {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+function requirementSourceHref(location: RequirementSourceLocation): string {
+  return `./sources/${requirementSourceFilename(location.source)}#${location.anchor}`;
+}
+
+function requirementSourceFilename(source: string): string {
+  return `source-${createHash("sha256").update(source, "utf8").digest("hex")}.html`;
+}
+
+function renderRequirementSource(
+  source: string,
+  markdown: string,
+  locations: ReadonlyMap<string, RequirementSourceLocation>,
+): string {
+  const anchors = new Map(
+    [...locations.values()]
+      .filter((location) => location.source === source)
+      .map((location) => [location.line, location.anchor]),
+  );
+  const content = markdown
+    .split(/\r\n|\n|\r/u)
+    .map((line, index) => {
+      const anchor = anchors.get(index + 1);
+      const escaped = escapeHtml(line);
+      return anchor
+        ? `<span class="requirement" id="${anchor}">${escaped}</span>`
+        : escaped;
+    })
+    .join("\n");
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(source)} — Moura Requirement source</title>
+<style>body{font:16px system-ui,sans-serif;max-width:72rem;margin:auto;padding:2rem;color:#172033}a{color:#167044}pre{font:14px ui-monospace,monospace;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}.requirement:target{background:#fff3b0;outline:.25rem solid #fff3b0}</style></head>
+<body><main><p><a href="../index.html">← Requirement Coverage</a></p><h1>${escapeHtml(source)}</h1><pre>${content}</pre></main></body></html>\n`;
 }

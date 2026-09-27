@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -233,9 +234,7 @@ function requirementSourceHref(location: RequirementSourceLocation): string {
 }
 
 function requirementSourceFilename(source: string): string {
-  return `source-${Array.from(new TextEncoder().encode(source), (byte) =>
-    byte.toString(16).padStart(2, "0"),
-  ).join("")}.html`;
+  return `source-${createHash("sha256").update(source, "utf8").digest("hex")}.html`;
 }
 
 function renderRequirementSource(

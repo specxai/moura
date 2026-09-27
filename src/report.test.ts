@@ -133,17 +133,17 @@ requirements:
     expect(result.exitCode).toBe(0);
     const html = await readFile(result.outputPath!, "utf8");
     expect(html).toContain(
-      '<h2><a href="./sources/source-726571756972656d656e74732026206e6f7465732f66697273742066696c652e6d64.html#requirement-52-45-51-2d-41">REQ-A</a></h2>',
+      '<h2><a href="./sources/source-7748c55e0769ceb2f4c9a94e5c4267886590b30037234b1bd6b16a479df82c95.html#requirement-52-45-51-2d-41">REQ-A</a></h2>',
     );
     expect(html).toContain(
-      '<h2><a href="./sources/source-726571756972656d656e74732026206e6f7465732f7365636f6e642e6d64.html#requirement-52-45-51-2d-42">REQ-B</a></h2>',
+      '<h2><a href="./sources/source-23116f7d4576a6c85674e32bf48acefbe1062338b77606f53f2a91c29099e562.html#requirement-52-45-51-2d-42">REQ-B</a></h2>',
     );
     expect(html).toContain("Requirements</strong><span>0 / 2 (0%)");
     expect(html).toContain("MISSING");
     const sourceHtml = await readFile(
       join(
         directory,
-        "moura-report/sources/source-726571756972656d656e74732026206e6f7465732f66697273742066696c652e6d64.html",
+        "moura-report/sources/source-7748c55e0769ceb2f4c9a94e5c4267886590b30037234b1bd6b16a479df82c95.html",
       ),
       "utf8",
     );
@@ -184,17 +184,70 @@ requirements:
     expect(result.exitCode).toBe(0);
     const html = await readFile(result.outputPath!, "utf8");
     expect(html).toContain(
-      "./sources/source-646f63735c7265712e6d64.html#requirement-52",
+      "./sources/source-718dee348093562dc0675c4be584825d14c1bba51f8a5ec1a72d7a6e27ce74e6.html#requirement-52",
     );
     await expect(
       readFile(
         join(
           directory,
-          "moura-report/sources/source-646f63735c7265712e6d64.html",
+          "moura-report/sources/source-718dee348093562dc0675c4be584825d14c1bba51f8a5ec1a72d7a6e27ce74e6.html",
         ),
         "utf8",
       ),
     ).resolves.toContain('id="requirement-52"');
+  });
+
+  it("uses a bounded snapshot filename for a long nested source path", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "moura-report-test-"));
+    directories.push(directory);
+    const segments = [
+      "requirements-with-a-long-directory-name-01",
+      "requirements-with-a-long-directory-name-02",
+      "requirements-with-a-long-directory-name-03",
+      "requirements-with-a-long-directory-name-04",
+    ];
+    const source = [...segments, "requirement-definition.md"].join("/");
+    expect(Buffer.byteLength(source, "utf8")).toBeGreaterThan(121);
+    await mkdir(join(directory, ...segments), { recursive: true });
+    await mkdir(join(directory, "allure-results"));
+    await Promise.all([
+      writeFile(
+        join(directory, "moura.yaml"),
+        `version: 1
+sources: { requirements: [${source}], specifications: [spec.md] }
+verification: { layers: [unit] }
+requirements:
+  - id: REQ-LONG
+    scenarios:
+      - id: S
+        cases: [{ id: C, verify: [unit] }]
+`,
+      ),
+      writeFile(
+        join(directory, ...segments, "requirement-definition.md"),
+        "# Context\n## REQ-LONG Long source path\n",
+      ),
+      writeFile(join(directory, "spec.md"), "## REQ-LONG\n### S\n#### C\n"),
+    ]);
+
+    const result = await reportProjectDirectory(directory);
+    expect(result.exitCode).toBe(0);
+    const html = await readFile(result.outputPath!, "utf8");
+    const href = /<h2><a href="([^"]+)">REQ-LONG<\/a><\/h2>/u.exec(html)?.[1];
+    expect(href).toMatch(
+      /^\.\/sources\/source-[a-f0-9]{64}\.html#requirement-52-45-51-2d-4c-4f-4e-47$/u,
+    );
+    const [snapshotPath, anchor] = href!.split("#");
+    const filename = snapshotPath!.slice("./sources/".length);
+    expect(Buffer.byteLength(filename, "utf8")).toBeLessThan(100);
+    const sourceHtml = await readFile(
+      join(directory, "moura-report", snapshotPath!),
+      "utf8",
+    );
+    expect(sourceHtml).toContain(`<h1>${source}</h1>`);
+    expect(sourceHtml).toContain(
+      `<span class="requirement" id="${anchor}">## REQ-LONG Long source path</span>`,
+    );
   });
 
   it("rejects an invalid project without writing a report", async () => {

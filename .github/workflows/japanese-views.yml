@@ -1,0 +1,52 @@
+name: Generate Japanese views
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: OpenAI model used for this repository-local PoC
+        required: true
+        default: gpt-5-mini
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    name: Translate and validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Japanese views
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ inputs.model }}
+        run: pnpm docs:ja:generate
+
+      - name: Validate generated views
+        run: pnpm docs:ja:validate
+
+      - name: Upload Japanese views
+        uses: actions/upload-artifact@v4
+        with:
+          name: moura-japanese-views
+          path: |
+            docs/ja/req.md
+            docs/ja/spec.md
+          if-no-files-found: error
+          retention-days: 14

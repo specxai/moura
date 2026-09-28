@@ -54,7 +54,9 @@
     "quality:site": "tsx scripts/build-quality-site.ts",
     "quality:summary": "tsx scripts/write-ci-summary.ts",
     "test:package": "tsx scripts/package-smoke.ts",
-    "prepack": "pnpm build"
+    "prepack": "pnpm build",
+    "docs:ja:generate": "tsx scripts/generate-japanese-views.ts",
+    "docs:ja:validate": "tsx scripts/validate-japanese-views.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

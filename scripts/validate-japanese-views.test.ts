@@ -1,7 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+
+import { describe, expect, it as vitestIt } from "vitest";
 
 import { parseManifest } from "../src/manifest.js";
+import { mouraEvidenceTest } from "../src/test-support/moura-evidence.js";
+import { isDirectExecution } from "./direct-execution.js";
 import { validateJapaneseView } from "./validate-japanese-views.js";
+
+const it = mouraEvidenceTest(vitestIt, ["REQ-008/SCN-001/CASE-001"], "unit");
 
 const manifest = parseManifest(`
 version: 1
@@ -13,7 +20,7 @@ verification:
 requirements:
   - id: REQ-001
     scenarios:
-      - id: SCN-001
+      - id: feature+🚀
         cases:
           - { id: CASE-001, verify: [unit] }
 `).value!;
@@ -22,11 +29,11 @@ const canonical = `# Specification
 
 ## REQ-001 Read a file
 
-### SCN-001 Validate input
+### feature+🚀 Validate input
 
 #### CASE-001 Keep machine values
 
-Run \`moura validate .\` against [the manifest](moura.yaml).
+Run \`moura validate .\` against [the manifest](moura.yaml). Scenario feature+🚀 uses canonical Case REQ-001/feature+🚀/CASE-001.
 
 \`\`\`yaml
 version: 1
@@ -37,11 +44,11 @@ const translated = `# 仕様
 
 ## REQ-001 ファイルを読む
 
-### SCN-001 入力を検証する
+### feature+🚀 入力を検証する
 
 #### CASE-001 機械可読値を維持する
 
-\`moura validate .\` を実行し、[マニフェスト](moura.yaml)を検証する。
+\`moura validate .\` を実行し、[マニフェスト](moura.yaml)を検証する。シナリオ feature+🚀 の正規Caseは REQ-001/feature+🚀/CASE-001。
 
 \`\`\`yaml
 version: 1
@@ -57,7 +64,10 @@ describe("Japanese view integrity", () => {
 
   it("detects traceability identifier and hierarchy drift", () => {
     const changedId = translated.replace("CASE-001", "CASE-002");
-    const changedHierarchy = translated.replace("### SCN-001", "# SCN-001");
+    const changedHierarchy = translated.replace(
+      "### feature+🚀",
+      "# feature+🚀",
+    );
     expect(
       validateJapaneseView(canonical, changedId, "specifications", manifest),
     ).toContain(
@@ -86,5 +96,74 @@ describe("Japanese view integrity", () => {
       "specifications: protected Markdown code changed",
       "specifications: protected Markdown links changed",
     ]);
+  });
+
+  it("derives protected local and canonical IDs from the manifest", () => {
+    const changedLocal = translated.replace(
+      "シナリオ feature+🚀 の正規Caseは",
+      "シナリオ feature変更 の正規Caseは",
+    );
+    const changedCanonical = translated.replace(
+      "REQ-001/feature+🚀/CASE-001。",
+      "REQ-001/feature変更/CASE-001。",
+    );
+    expect(
+      validateJapaneseView(canonical, changedLocal, "specifications", manifest),
+    ).toContain("specifications: protected Markdown identifiers changed");
+    expect(
+      validateJapaneseView(
+        canonical,
+        changedCanonical,
+        "specifications",
+        manifest,
+      ),
+    ).toContain("specifications: protected Markdown identifiers changed");
+  });
+
+  it("protects reference-style link and image semantics while allowing labels to translate", () => {
+    const source = `${canonical}
+[documentation][docs] ![diagram][architecture]
+
+[docs]: ./docs/example.md
+[architecture]: ./docs/architecture.png
+`;
+    const japanese = `${translated}
+[文書][docs] ![構成図][architecture]
+
+[docs]: ./docs/example.md
+[architecture]: ./docs/architecture.png
+`;
+    expect(
+      validateJapaneseView(source, japanese, "specifications", manifest),
+    ).toEqual([]);
+    expect(
+      validateJapaneseView(
+        source,
+        japanese.replace("[文書][docs]", "[文書][other]"),
+        "specifications",
+        manifest,
+      ),
+    ).toContain("specifications: protected Markdown references changed");
+    expect(
+      validateJapaneseView(
+        source,
+        japanese.replace("./docs/architecture.png", "./docs/other.png"),
+        "specifications",
+        manifest,
+      ),
+    ).toContain("specifications: protected Markdown references changed");
+    expect(
+      validateJapaneseView(
+        source,
+        japanese.replace("[docs]: ./docs/example.md\n", ""),
+        "specifications",
+        manifest,
+      ),
+    ).toContain("specifications: protected Markdown references changed");
+  });
+
+  it("recognizes entry paths containing URL-significant characters", () => {
+    const entry = resolve("temporary # ? % directory", "script.ts");
+    expect(isDirectExecution(pathToFileURL(entry).href, entry)).toBe(true);
   });
 });

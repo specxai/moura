@@ -274,3 +274,14 @@ Moura's internal dogfooding helpers.
 
 The verified example generates a non-empty `moura-report/index.html` containing
 its canonical Case identity.
+
+## REQ-008
+
+### SCN-001 Generate repository Japanese views
+
+#### CASE-001 Preserve traceability in generated views
+
+Repository-local validation allows translated human-readable prose while
+rejecting changes to manifest-defined local and canonical IDs, Requirement →
+Scenario → Case structure, code, commands, paths, HTML, and Markdown link
+semantics.

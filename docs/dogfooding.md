@@ -61,6 +61,7 @@ The full-suite reverse audit groups Evidence by the behavior under test:
 | `scripts/ci-summary.test.ts`              | CI Allure result summary                        | unit        |
 | `scripts/run-command.test.ts`             | quality-pipeline command execution              | unit        |
 | `scripts/registry-smoke.test.ts`          | npm registry release identity                   | unit        |
+| `scripts/validate-japanese-views.test.ts` | generated-view traceability integrity           | unit        |
 
 The separate `scripts/package-smoke.ts` command supplies the integration
 Evidence for the packaged-consumer guarantee; it is not part of the reviewed

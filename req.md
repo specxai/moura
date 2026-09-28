@@ -38,3 +38,9 @@ publicly documented traceability metadata and CLI contracts.
 Moura shall provide an official Vitest and Allure example that an external user
 can execute to validate traceability, produce Evidence, enforce strict reverse
 traceability, and generate Requirement Coverage.
+
+## REQ-008 Publish derived Japanese documentation views
+
+Moura's repository automation shall generate Japanese views of the canonical
+English Requirement and Specification documents while deterministically
+preserving their machine-relevant traceability content.

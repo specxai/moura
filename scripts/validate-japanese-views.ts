@@ -5,11 +5,13 @@ import type { Root } from "mdast";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 
+import { canonicalId } from "../src/id.js";
 import { parseManifest, type MouraManifest } from "../src/manifest.js";
 import {
   parseRequirementMarkdown,
   parseSpecificationMarkdown,
 } from "../src/markdown.js";
+import { isDirectExecution } from "./direct-execution.js";
 
 export type DocumentRole = "requirements" | "specifications";
 
@@ -18,6 +20,7 @@ interface ProtectedMarkdown {
   readonly html: readonly string[];
   readonly links: readonly string[];
   readonly identifiers: readonly string[];
+  readonly references: readonly string[];
 }
 
 interface AstNode {
@@ -27,11 +30,10 @@ interface AstNode {
   readonly title?: unknown;
   readonly lang?: unknown;
   readonly meta?: unknown;
+  readonly identifier?: unknown;
+  readonly referenceType?: unknown;
   readonly children?: unknown;
 }
-
-const identifierPattern =
-  /\b(?:REQ|SCN|CASE)-[\p{L}\p{N}._~-]+(?:\/(?:REQ|SCN|CASE)-[\p{L}\p{N}._~-]+)*\b/gu;
 
 export function validateJapaneseView(
   canonical: string,
@@ -53,8 +55,9 @@ export function validateJapaneseView(
   )
     problems.push(`${role}: traceability identifiers or hierarchy changed`);
 
-  const canonicalProtected = protectedMarkdown(canonical);
-  const generatedProtected = protectedMarkdown(generated);
+  const protectedIdentifiers = manifestIdentifiers(manifest);
+  const canonicalProtected = protectedMarkdown(canonical, protectedIdentifiers);
+  const generatedProtected = protectedMarkdown(generated, protectedIdentifiers);
   for (const key of Object.keys(
     canonicalProtected,
   ) as (keyof ProtectedMarkdown)[]) {
@@ -83,12 +86,16 @@ function structure(
   };
 }
 
-function protectedMarkdown(markdown: string): ProtectedMarkdown {
+function protectedMarkdown(
+  markdown: string,
+  protectedIdentifiers: readonly string[],
+): ProtectedMarkdown {
   const tree = unified().use(remarkParse).parse(markdown) as Root;
   const code: string[] = [];
   const html: string[] = [];
   const links: string[] = [];
   const identifiers: string[] = [];
+  const references: string[] = [];
 
   walk(tree as AstNode, (node) => {
     if (node.type === "code")
@@ -99,11 +106,49 @@ function protectedMarkdown(markdown: string): ProtectedMarkdown {
     if (node.type === "html") html.push(String(node.value));
     if (node.type === "link" || node.type === "image")
       links.push(JSON.stringify([node.type, node.url, node.title ?? null]));
-    if (typeof node.value === "string")
-      identifiers.push(...(node.value.match(identifierPattern) ?? []));
+    if (node.type === "linkReference" || node.type === "imageReference")
+      references.push(
+        JSON.stringify([node.type, node.identifier, node.referenceType]),
+      );
+    if (node.type === "definition")
+      references.push(
+        JSON.stringify([
+          node.type,
+          node.identifier,
+          node.url,
+          node.title ?? null,
+        ]),
+      );
+    if (typeof node.value === "string") {
+      for (const identifier of protectedIdentifiers) {
+        let offset = 0;
+        while ((offset = node.value.indexOf(identifier, offset)) !== -1) {
+          identifiers.push(identifier);
+          offset += identifier.length;
+        }
+      }
+    }
   });
 
-  return { code, html, links, identifiers };
+  return { code, html, links, identifiers, references };
+}
+
+function manifestIdentifiers(manifest: MouraManifest): readonly string[] {
+  const identifiers = manifest.requirements.flatMap((requirement) => [
+    requirement.localId,
+    canonicalId([requirement]),
+    ...requirement.scenarios.flatMap((scenario) => [
+      scenario.localId,
+      canonicalId([requirement, scenario]),
+      ...scenario.cases.flatMap((testCase) => [
+        testCase.localId,
+        canonicalId([requirement, scenario, testCase]),
+      ]),
+    ]),
+  ]);
+  return [...new Set(identifiers)].sort(
+    (left, right) => right.length - left.length || left.localeCompare(right),
+  );
 }
 
 function walk(node: AstNode, visit: (node: AstNode) => void): void {
@@ -147,8 +192,7 @@ async function main(): Promise<void> {
   );
 }
 
-const entry = process.argv[1];
-if (entry && import.meta.url === new URL(`file://${resolve(entry)}`).href)
+if (isDirectExecution(import.meta.url))
   main().catch((cause: unknown) => {
     console.error(cause instanceof Error ? cause.message : cause);
     process.exitCode = 1;

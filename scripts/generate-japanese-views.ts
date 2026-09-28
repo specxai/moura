@@ -1,6 +1,8 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
+import { isDirectExecution } from "./direct-execution.js";
+
 interface ResponseOutput {
   readonly type?: unknown;
   readonly content?: readonly {
@@ -87,8 +89,7 @@ async function main(): Promise<void> {
   }
 }
 
-const entry = process.argv[1];
-if (entry && import.meta.url === new URL(`file://${resolve(entry)}`).href)
+if (isDirectExecution(import.meta.url))
   main().catch((cause: unknown) => {
     console.error(cause instanceof Error ? cause.message : cause);
     process.exitCode = 1;

@@ -12,6 +12,10 @@ interface ResponseOutput {
 }
 
 interface OpenAIResponse {
+  readonly status?: unknown;
+  readonly incomplete_details?: {
+    readonly reason?: unknown;
+  } | null;
   readonly output?: readonly ResponseOutput[];
   readonly error?: { readonly message?: unknown };
 }
@@ -54,6 +58,12 @@ export async function translateMarkdown(
     throw new Error(
       `OpenAI Responses API failed (${response.status}): ${String(body.error?.message ?? response.statusText)}`,
     );
+  if (body.status === "incomplete") {
+    const reason = body.incomplete_details?.reason;
+    throw new Error(
+      `OpenAI generation was incomplete for ${source}${typeof reason === "string" && reason ? ` (${reason})` : ""}`,
+    );
+  }
   const translated = body.output
     ?.flatMap((item) => item.content ?? [])
     .filter(

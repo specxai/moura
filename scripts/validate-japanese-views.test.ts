@@ -6,6 +6,7 @@ import { describe, expect, it as vitestIt } from "vitest";
 import { parseManifest } from "../src/manifest.js";
 import { mouraEvidenceTest } from "../src/test-support/moura-evidence.js";
 import { isDirectExecution } from "./direct-execution.js";
+import { GENERATED_VIEW_NOTICE } from "./generate-japanese-views.js";
 import { validateJapaneseView } from "./validate-japanese-views.js";
 
 const it = mouraEvidenceTest(vitestIt, ["REQ-008/SCN-001/CASE-001"], "unit");
@@ -79,6 +80,14 @@ describe("Japanese view integrity", () => {
   it("allows human-readable prose to differ", () => {
     expect(
       validateJapaneseView(canonical, translated, "specifications", manifest),
+    ).toEqual([]);
+    expect(
+      validateJapaneseView(
+        canonical,
+        `${GENERATED_VIEW_NOTICE}${translated}`,
+        "specifications",
+        manifest,
+      ),
     ).toEqual([]);
   });
 
@@ -175,6 +184,65 @@ describe("Japanese view integrity", () => {
         orderedManifest,
       ),
     ).toContain("specifications: protected Markdown identifiers changed");
+  });
+
+  it("rejects an identifier changed by adjacent identifier characters", () => {
+    expect(
+      validateJapaneseView(
+        "See REQ-001",
+        "See REQ-001-ja",
+        "specifications",
+        manifest,
+      ),
+    ).toContain("specifications: protected Markdown identifiers changed");
+  });
+
+  it("rejects omitted prose blocks without comparing translated meaning", () => {
+    const source = `## REQ-001
+
+This requirement ensures that the CLI remains predictable.
+
+Additional operational notes are important.
+`;
+    const japanese = `## REQ-001
+
+この要件によりCLIの動作が予測可能になります。
+`;
+
+    expect(
+      validateJapaneseView(source, japanese, "requirements", manifest),
+    ).toContain("requirements: Markdown block structure changed");
+  });
+
+  it("preserves translatable Markdown block topology", () => {
+    const source = `# Guide
+
+> Important guidance.
+
+- First item
+  - Nested item
+- Second item
+
+1. Ordered item
+`;
+    const japanese = `# ガイド
+
+> 重要な案内です。
+
+- 最初の項目
+  - 入れ子の項目
+- 2番目の項目
+
+1. 順序付き項目
+`;
+    const missingListItem = japanese.replace("- 2番目の項目\n", "");
+
+    expect(
+      validateJapaneseView(source, japanese, "requirements", manifest),
+    ).toEqual([]);
+    expect(
+      validateJapaneseView(source, missingListItem, "requirements", manifest),
+    ).toContain("requirements: Markdown block structure changed");
   });
 
   it("protects reference-style link and image semantics while allowing labels to translate", () => {

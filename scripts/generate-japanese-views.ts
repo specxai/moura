@@ -20,7 +20,7 @@ interface OpenAIResponse {
   readonly error?: { readonly message?: unknown };
 }
 
-const notice = `> **Generated file — do not edit.** This Japanese view is derived from the corresponding English document in the repository root. The English document is authoritative.
+export const GENERATED_VIEW_NOTICE = `> **Generated file — do not edit.** This Japanese view is derived from the corresponding English document in the repository root. The English document is authoritative.
 >
 > **生成ファイル — 編集しないでください。** この日本語版はリポジトリ直下の対応する英語文書から生成されています。英語文書が正本です。
 
@@ -77,7 +77,7 @@ export async function translateMarkdown(
     throw new Error(
       `OpenAI wrapped ${source} in an outer code fence; generation aborted`,
     );
-  return `${notice}${translated.trim()}\n`;
+  return `${GENERATED_VIEW_NOTICE}${translated.trim()}\n`;
 }
 
 async function main(): Promise<void> {

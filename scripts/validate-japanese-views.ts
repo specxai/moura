@@ -12,6 +12,7 @@ import {
   parseSpecificationMarkdown,
 } from "../src/markdown.js";
 import { isDirectExecution } from "./direct-execution.js";
+import { GENERATED_VIEW_NOTICE } from "./generate-japanese-views.js";
 
 export type DocumentRole = "requirements" | "specifications";
 
@@ -33,6 +34,11 @@ interface AstNode {
   readonly identifier?: unknown;
   readonly referenceType?: unknown;
   readonly children?: unknown;
+  readonly depth?: unknown;
+  readonly ordered?: unknown;
+  readonly start?: unknown;
+  readonly spread?: unknown;
+  readonly checked?: unknown;
 }
 
 export function validateJapaneseView(
@@ -54,6 +60,12 @@ export function validateJapaneseView(
     JSON.stringify(generatedStructure.value)
   )
     problems.push(`${role}: traceability identifiers or hierarchy changed`);
+
+  if (
+    JSON.stringify(blockStructure(canonical)) !==
+    JSON.stringify(blockStructure(withoutGeneratedNotice(generated)))
+  )
+    problems.push(`${role}: Markdown block structure changed`);
 
   const protectedIdentifiers = manifestIdentifiers(manifest);
   const canonicalProtected = protectedMarkdown(canonical, protectedIdentifiers);
@@ -123,8 +135,11 @@ function protectedMarkdown(
       const value = node.value;
       let offset = 0;
       while (offset < value.length) {
-        const identifier = protectedIdentifiers.find((candidate) =>
-          value.startsWith(candidate, offset),
+        const identifier = protectedIdentifiers.find(
+          (candidate) =>
+            value.startsWith(candidate, offset) &&
+            isIdentifierBoundary(value, offset - 1) &&
+            isIdentifierBoundary(value, offset + candidate.length),
         );
         if (identifier) {
           identifiers.push(identifier);
@@ -137,6 +152,76 @@ function protectedMarkdown(
   });
 
   return { code, html, links, identifiers, references };
+}
+
+/**
+ * Moura IDs may contain any printable non-whitespace character, so `\b` is
+ * not an identifier boundary. Treat characters commonly usable inside an ID
+ * (including Unicode letters, dashes, symbols, and Moura's `/` separator) as
+ * continuations, while allowing prose punctuation around an occurrence.
+ */
+function isIdentifierBoundary(value: string, offset: number): boolean {
+  if (offset < 0 || offset >= value.length) return true;
+  const codeUnit = value.charCodeAt(offset);
+  const codePointOffset =
+    codeUnit >= 0xdc00 && codeUnit <= 0xdfff ? offset - 1 : offset;
+  const character = String.fromCodePoint(value.codePointAt(codePointOffset)!);
+  return !/[\p{L}\p{M}\p{N}\p{Pc}\p{Pd}\p{S}/]/u.test(character);
+}
+
+function withoutGeneratedNotice(markdown: string): string {
+  return markdown.startsWith(GENERATED_VIEW_NOTICE)
+    ? markdown.slice(GENERATED_VIEW_NOTICE.length)
+    : markdown;
+}
+
+/** Capture block topology only; translated inline prose is intentionally free. */
+function blockStructure(markdown: string): unknown {
+  const tree = unified().use(remarkParse).parse(markdown) as Root;
+  return blockChildren(tree as AstNode);
+}
+
+function blockChildren(node: AstNode): readonly unknown[] {
+  if (!Array.isArray(node.children)) return [];
+  return node.children.flatMap((child) => {
+    const block = child as AstNode;
+    if (isInlineNode(block.type)) return [];
+    return [
+      {
+        type: block.type,
+        ...(block.type === "heading" ? { depth: block.depth } : {}),
+        ...(block.type === "list"
+          ? {
+              ordered: block.ordered,
+              start: block.start,
+              spread: block.spread,
+            }
+          : {}),
+        ...(block.type === "listItem"
+          ? { checked: block.checked, spread: block.spread }
+          : {}),
+        children: blockChildren(block),
+      },
+    ];
+  });
+}
+
+function isInlineNode(type: unknown): boolean {
+  return (
+    typeof type === "string" &&
+    [
+      "text",
+      "emphasis",
+      "strong",
+      "delete",
+      "inlineCode",
+      "break",
+      "link",
+      "image",
+      "linkReference",
+      "imageReference",
+    ].includes(type)
+  );
 }
 
 function manifestIdentifiers(manifest: MouraManifest): readonly string[] {

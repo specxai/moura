@@ -120,11 +120,17 @@ function protectedMarkdown(
         ]),
       );
     if (typeof node.value === "string") {
-      for (const identifier of protectedIdentifiers) {
-        let offset = 0;
-        while ((offset = node.value.indexOf(identifier, offset)) !== -1) {
+      const value = node.value;
+      let offset = 0;
+      while (offset < value.length) {
+        const identifier = protectedIdentifiers.find((candidate) =>
+          value.startsWith(candidate, offset),
+        );
+        if (identifier) {
           identifiers.push(identifier);
           offset += identifier.length;
+        } else {
+          offset += 1;
         }
       }
     }

@@ -25,6 +25,26 @@ requirements:
           - { id: CASE-001, verify: [unit] }
 `).value!;
 
+const orderedManifest = parseManifest(`
+version: 1
+sources:
+  requirements: [req.md]
+  specifications: [spec.md]
+verification:
+  layers: [unit]
+requirements:
+  - id: REQ-001
+    scenarios:
+      - id: feature+🚀
+        cases:
+          - { id: CASE-001, verify: [unit] }
+  - id: REQ-002
+    scenarios:
+      - id: SCN-002
+        cases:
+          - { id: CASE-002, verify: [unit] }
+`).value!;
+
 const canonical = `# Specification
 
 ## REQ-001 Read a file
@@ -116,6 +136,43 @@ describe("Japanese view integrity", () => {
         changedCanonical,
         "specifications",
         manifest,
+      ),
+    ).toContain("specifications: protected Markdown identifiers changed");
+  });
+
+  it("preserves identifier occurrences in prose source order", () => {
+    const source = "REQ-001 and REQ-002";
+
+    expect(
+      validateJapaneseView(
+        source,
+        "REQ-001 and REQ-002",
+        "specifications",
+        orderedManifest,
+      ),
+    ).toEqual([]);
+    expect(
+      validateJapaneseView(
+        source,
+        "REQ-002 and REQ-001",
+        "specifications",
+        orderedManifest,
+      ),
+    ).toContain("specifications: protected Markdown identifiers changed");
+  });
+
+  it("uses the longest identifier at overlapping occurrence positions", () => {
+    const source = "REQ-001/feature+🚀/CASE-001 then feature+🚀 then REQ-001";
+
+    expect(
+      validateJapaneseView(source, source, "specifications", orderedManifest),
+    ).toEqual([]);
+    expect(
+      validateJapaneseView(
+        source,
+        "feature+🚀 then REQ-001/feature+🚀/CASE-001 then REQ-001",
+        "specifications",
+        orderedManifest,
       ),
     ).toContain("specifications: protected Markdown identifiers changed");
   });

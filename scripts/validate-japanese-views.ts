@@ -20,7 +20,7 @@ interface ProtectedMarkdown {
   readonly code: readonly string[];
   readonly html: readonly string[];
   readonly links: readonly string[];
-  readonly identifiers: readonly string[];
+  readonly idLinks: readonly string[];
   readonly references: readonly string[];
 }
 
@@ -100,13 +100,13 @@ function structure(
 
 function protectedMarkdown(
   markdown: string,
-  protectedIdentifiers: readonly string[],
+  protectedIdentifiers: ReadonlySet<string>,
 ): ProtectedMarkdown {
   const tree = unified().use(remarkParse).parse(markdown) as Root;
   const code: string[] = [];
   const html: string[] = [];
   const links: string[] = [];
-  const identifiers: string[] = [];
+  const idLinks: string[] = [];
   const references: string[] = [];
 
   walk(tree as AstNode, (node) => {
@@ -131,42 +131,29 @@ function protectedMarkdown(
           node.title ?? null,
         ]),
       );
-    if (typeof node.value === "string") {
-      const value = node.value;
-      let offset = 0;
-      while (offset < value.length) {
-        const identifier = protectedIdentifiers.find(
-          (candidate) =>
-            value.startsWith(candidate, offset) &&
-            isIdentifierBoundary(value, offset - 1) &&
-            isIdentifierBoundary(value, offset + candidate.length),
+    if (node.type === "link" || node.type === "linkReference") {
+      const label = linkLabel(node);
+      if (protectedIdentifiers.has(label))
+        idLinks.push(
+          JSON.stringify([
+            node.type,
+            label,
+            node.type === "link" ? node.url : node.identifier,
+          ]),
         );
-        if (identifier) {
-          identifiers.push(identifier);
-          offset += identifier.length;
-        } else {
-          offset += 1;
-        }
-      }
     }
   });
 
-  return { code, html, links, identifiers, references };
+  return { code, html, links, idLinks, references };
 }
 
-/**
- * Moura IDs may contain any printable non-whitespace character, so `\b` is
- * not an identifier boundary. Treat characters commonly usable inside an ID
- * (including Unicode letters, dashes, symbols, and Moura's `/` separator) as
- * continuations, while allowing prose punctuation around an occurrence.
- */
-function isIdentifierBoundary(value: string, offset: number): boolean {
-  if (offset < 0 || offset >= value.length) return true;
-  const codeUnit = value.charCodeAt(offset);
-  const codePointOffset =
-    codeUnit >= 0xdc00 && codeUnit <= 0xdfff ? offset - 1 : offset;
-  const character = String.fromCodePoint(value.codePointAt(codePointOffset)!);
-  return !/[\p{L}\p{M}\p{N}\p{Pc}\p{Pd}\p{S}/]/u.test(character);
+/** Compare the complete explicit link label, never substrings of prose. */
+function linkLabel(node: AstNode): string {
+  if (node.type === "break") return "\n";
+  if (node.type === "text" || node.type === "inlineCode")
+    return String(node.value);
+  if (!Array.isArray(node.children)) return "";
+  return node.children.map((child) => linkLabel(child as AstNode)).join("");
 }
 
 function withoutGeneratedNotice(markdown: string): string {
@@ -224,7 +211,7 @@ function isInlineNode(type: unknown): boolean {
   );
 }
 
-function manifestIdentifiers(manifest: MouraManifest): readonly string[] {
+function manifestIdentifiers(manifest: MouraManifest): ReadonlySet<string> {
   const identifiers = manifest.requirements.flatMap((requirement) => [
     requirement.localId,
     canonicalId([requirement]),
@@ -237,9 +224,7 @@ function manifestIdentifiers(manifest: MouraManifest): readonly string[] {
       ]),
     ]),
   ]);
-  return [...new Set(identifiers)].sort(
-    (left, right) => right.length - left.length || left.localeCompare(right),
-  );
+  return new Set(identifiers);
 }
 
 function walk(node: AstNode, visit: (node: AstNode) => void): void {

@@ -282,6 +282,9 @@ its canonical Case identity.
 #### CASE-001 Preserve traceability in generated views
 
 Repository-local validation allows translated human-readable prose while
-rejecting changes to manifest-defined local and canonical IDs, Requirement →
-Scenario → Case structure, code, commands, paths, HTML, and Markdown link
-semantics.
+preserving parsed Requirement → Scenario → Case IDs, hierarchy, and order,
+prose blocks, code, commands, paths, HTML, and Markdown link/image destinations
+and reference definitions. Explicit Markdown link labels that exactly match
+manifest local or canonical IDs retain their labels, destinations, and order.
+The validator does not infer Moura references from arbitrary natural-language
+prose or validate translation meaning.

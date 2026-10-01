@@ -45,7 +45,7 @@ describe("Japanese view generation", () => {
     );
   });
 
-  it("sends the identifier delimiter contract to the translation API", async () => {
+  it("sends the structured-information contract to the translation API", async () => {
     mockResponse({
       status: "completed",
       output: [
@@ -66,20 +66,14 @@ describe("Japanese view generation", () => {
     const instructions = body.input.find(
       (item) => item.role === "system",
     )!.content;
+    expect(instructions).toContain("heading IDs, hierarchy, and order exactly");
     expect(instructions).toContain(
-      "Preserve every identifier string exactly and preserve identifier occurrence order",
+      "link label that exactly equals a manifest local or canonical ID",
     );
     expect(instructions).toContain(
-      "Never concatenate translated prose directly onto an identifier",
+      "does not infer Moura references from arbitrary natural-language prose",
     );
-    expect(instructions).toContain("insert whitespace between them");
-    expect(instructions).toContain(
-      "Never embed an identifier as a substring of another identifier or add a prefix or suffix",
-    );
-    expect(instructions).toContain('"REQ-001 は必須です。"');
-    expect(instructions).toContain(
-      'never "REQ-001は必須です。" or "REQ-001-ja は必須です。"',
-    );
+    expect(instructions).not.toContain("insert whitespace");
   });
 
   it("returns output text from a completed response", async () => {

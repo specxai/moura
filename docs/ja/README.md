@@ -16,11 +16,12 @@ The OpenAI integration is deliberately repository-local automation for this
 proof of concept. It is not a Moura CLI feature or a public translation-provider
 contract.
 
-Preserved manifest / traceability identifiers must be clearly delimited from
-translated prose. Keep every identifier string and its occurrence order unchanged;
-do not embed it as a substring of another identifier or add a prefix or suffix.
-When translated prose follows an identifier, separate it with whitespace:
-`REQ-001 is required.` becomes `REQ-001 は必須です。`, never
-`REQ-001は必須です。` or `REQ-001-ja は必須です。`. Validation checks
-identifier boundaries deterministically, without language-specific exceptions or
-semantic translation validation.
+Generated Japanese views preserve Moura traceability structure and explicitly
+structured machine-relevant Markdown: code, HTML, link/image destinations, and
+reference definitions. Link labels that exactly match manifest local or canonical
+IDs are also preserved with their destinations and occurrence order; other link
+labels may be translated. The validator does not infer Moura references from
+arbitrary natural-language prose or validate translation meaning. It checks prose
+block preservation, not semantic equivalence. No prose identifier delimiter is
+required. This PoC does not define Moura reference syntax, anchors, or link-target
+resolution.

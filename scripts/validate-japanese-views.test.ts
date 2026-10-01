@@ -197,6 +197,68 @@ describe("Japanese view integrity", () => {
     ).toContain("specifications: protected Markdown identifiers changed");
   });
 
+  it("accepts whitespace between preserved identifiers and Japanese prose", () => {
+    expect(
+      validateJapaneseView(
+        "See REQ-001 for details.",
+        "詳細は REQ-001 を参照してください。",
+        "specifications",
+        manifest,
+      ),
+    ).toEqual([]);
+    expect(
+      validateJapaneseView(
+        "REQ-001 is required.",
+        "REQ-001 は必須です。",
+        "specifications",
+        manifest,
+      ),
+    ).toEqual([]);
+  });
+
+  it("rejects identifier mutations and directly concatenated prose", () => {
+    for (const japanese of [
+      "詳細は REQ-001-ja を参照してください。",
+      "詳細は ja-REQ-001 を参照してください。",
+      "詳細は REQ-001を参照してください。",
+    ]) {
+      expect(
+        validateJapaneseView(
+          "See REQ-001 for details.",
+          japanese,
+          "specifications",
+          manifest,
+        ),
+      ).toContain("specifications: protected Markdown identifiers changed");
+    }
+  });
+
+  it("does not double count local IDs inside canonical IDs", () => {
+    expect(
+      validateJapaneseView(
+        "REQ-001/feature+🚀/CASE-001",
+        "REQ-001/feature+🚀/CASE-001 REQ-001 feature+🚀 CASE-001",
+        "specifications",
+        manifest,
+      ),
+    ).toContain("specifications: protected Markdown identifiers changed");
+  });
+
+  it("preserves HTML tags exactly", () => {
+    const source = '<span data-id="REQ-001">fixed</span>';
+    expect(
+      validateJapaneseView(source, source, "specifications", manifest),
+    ).toEqual([]);
+    expect(
+      validateJapaneseView(
+        source,
+        source.replace("data-id", "data-other"),
+        "specifications",
+        manifest,
+      ),
+    ).toContain("specifications: protected Markdown html changed");
+  });
+
   it("rejects omitted prose blocks without comparing translated meaning", () => {
     const source = `## REQ-001
 

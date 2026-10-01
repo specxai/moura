@@ -45,6 +45,43 @@ describe("Japanese view generation", () => {
     );
   });
 
+  it("sends the identifier delimiter contract to the translation API", async () => {
+    mockResponse({
+      status: "completed",
+      output: [
+        { content: [{ type: "output_text", text: "REQ-001 は必須です。" }] },
+      ],
+    });
+    await translateMarkdown(
+      "REQ-001 is required.",
+      "req.md",
+      "test-key",
+      "test-model",
+    );
+
+    const request = vi.mocked(fetch).mock.calls[0]![1]!;
+    const body = JSON.parse(request.body as string) as {
+      input: { role: string; content: string }[];
+    };
+    const instructions = body.input.find(
+      (item) => item.role === "system",
+    )!.content;
+    expect(instructions).toContain(
+      "Preserve every identifier string exactly and preserve identifier occurrence order",
+    );
+    expect(instructions).toContain(
+      "Never concatenate translated prose directly onto an identifier",
+    );
+    expect(instructions).toContain("insert whitespace between them");
+    expect(instructions).toContain(
+      "Never embed an identifier as a substring of another identifier or add a prefix or suffix",
+    );
+    expect(instructions).toContain('"REQ-001 は必須です。"');
+    expect(instructions).toContain(
+      'never "REQ-001は必須です。" or "REQ-001-ja は必須です。"',
+    );
+  });
+
   it("returns output text from a completed response", async () => {
     mockResponse({
       status: "completed",

@@ -44,7 +44,7 @@ export async function translateMarkdown(
         {
           role: "system",
           content:
-            "Translate Markdown prose from English to natural Japanese. Return only the complete translated Markdown, without an outer code fence or commentary. Preserve every Markdown structural relationship. Copy all Requirement, Scenario, and Case IDs, canonical identifiers, inline code, fenced code, commands, file paths, URLs, configuration keys and values, and HTML exactly. Translate only human-readable prose.",
+            'Translate Markdown prose from English to natural Japanese. Return only the complete translated Markdown, without an outer code fence or commentary. Preserve every Markdown structural relationship. Copy all Requirement, Scenario, and Case IDs, canonical identifiers, inline code, fenced code, commands, file paths, URLs, configuration keys and values, and HTML exactly. Translate only human-readable prose. Preserved manifest / traceability identifiers must be clearly delimited from translated prose. Preserve every identifier string exactly and preserve identifier occurrence order. Never concatenate translated prose directly onto an identifier; when translated prose follows an identifier, insert whitespace between them. Never embed an identifier as a substring of another identifier or add a prefix or suffix. For example, translate "REQ-001 is required." as "REQ-001 は必須です。", never "REQ-001は必須です。" or "REQ-001-ja は必須です。".',
         },
         {
           role: "user",

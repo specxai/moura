@@ -284,7 +284,7 @@ its canonical Case identity.
 Repository-local validation allows translated human-readable prose while
 preserving parsed Requirement → Scenario → Case IDs, hierarchy, and order,
 prose blocks, code, commands, paths, HTML, and Markdown link/image destinations
-and reference definitions, including their containing blocks. Explicit Markdown link labels that exactly match
-manifest local or canonical IDs retain their labels, destinations, and order.
-The validator does not infer Moura references from arbitrary natural-language
-prose or validate translation meaning.
+and reference definitions, including their containing blocks. Human-readable
+link labels may be translated even when they match manifest IDs. The validator
+does not infer Moura references from link labels or arbitrary natural-language
+prose, or validate translation meaning.

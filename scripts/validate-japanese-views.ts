@@ -5,7 +5,6 @@ import type { Root } from "mdast";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 
-import { canonicalId } from "../src/id.js";
 import { parseManifest, type MouraManifest } from "../src/manifest.js";
 import {
   parseRequirementMarkdown,
@@ -20,7 +19,6 @@ interface ProtectedMarkdown {
   readonly code: readonly string[];
   readonly html: readonly string[];
   readonly links: readonly string[];
-  readonly idLinks: readonly string[];
   readonly references: readonly string[];
   readonly placements: readonly string[];
 }
@@ -68,11 +66,9 @@ export function validateJapaneseView(
   )
     problems.push(`${role}: Markdown block structure changed`);
 
-  const protectedIdentifiers = manifestIdentifiers(manifest);
-  const canonicalProtected = protectedMarkdown(canonical, protectedIdentifiers);
+  const canonicalProtected = protectedMarkdown(canonical);
   const generatedProtected = protectedMarkdown(
     withoutGeneratedNotice(generated),
-    protectedIdentifiers,
   );
   for (const key of Object.keys(
     canonicalProtected,
@@ -102,15 +98,11 @@ function structure(
   };
 }
 
-function protectedMarkdown(
-  markdown: string,
-  protectedIdentifiers: ReadonlySet<string>,
-): ProtectedMarkdown {
+function protectedMarkdown(markdown: string): ProtectedMarkdown {
   const tree = unified().use(remarkParse).parse(markdown) as Root;
   const code: string[] = [];
   const html: string[] = [];
   const links: string[] = [];
-  const idLinks: string[] = [];
   const references: string[] = [];
   const placements: string[] = [];
 
@@ -149,29 +141,9 @@ function protectedMarkdown(
           node.title ?? null,
         ]),
       );
-    if (node.type === "link" || node.type === "linkReference") {
-      const label = linkLabel(node);
-      if (protectedIdentifiers.has(label))
-        idLinks.push(
-          JSON.stringify([
-            node.type,
-            label,
-            node.type === "link" ? node.url : node.identifier,
-          ]),
-        );
-    }
   });
 
-  return { code, html, links, idLinks, references, placements };
-}
-
-/** Compare the complete explicit link label, never substrings of prose. */
-function linkLabel(node: AstNode): string {
-  if (node.type === "break") return "\n";
-  if (node.type === "text" || node.type === "inlineCode")
-    return String(node.value);
-  if (!Array.isArray(node.children)) return "";
-  return node.children.map((child) => linkLabel(child as AstNode)).join("");
+  return { code, html, links, references, placements };
 }
 
 function withoutGeneratedNotice(markdown: string): string {
@@ -227,22 +199,6 @@ function isInlineNode(type: unknown): boolean {
       "imageReference",
     ].includes(type)
   );
-}
-
-function manifestIdentifiers(manifest: MouraManifest): ReadonlySet<string> {
-  const identifiers = manifest.requirements.flatMap((requirement) => [
-    requirement.localId,
-    canonicalId([requirement]),
-    ...requirement.scenarios.flatMap((scenario) => [
-      scenario.localId,
-      canonicalId([requirement, scenario]),
-      ...scenario.cases.flatMap((testCase) => [
-        testCase.localId,
-        canonicalId([requirement, scenario, testCase]),
-      ]),
-    ]),
-  ]);
-  return new Set(identifiers);
 }
 
 /** Track containing blocks without making translated prose or inline formatting identity. */

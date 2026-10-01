@@ -68,12 +68,13 @@ describe("Japanese view generation", () => {
     )!.content;
     expect(instructions).toContain("heading IDs, hierarchy, and order exactly");
     expect(instructions).toContain(
-      "link label that exactly equals a manifest local or canonical ID",
+      "Translate human-readable Markdown link labels",
     );
     expect(instructions).toContain(
       "does not infer Moura references from arbitrary natural-language prose",
     );
     expect(instructions).not.toContain("insert whitespace");
+    expect(instructions).not.toContain("manifest local or canonical ID");
   });
 
   it("returns output text from a completed response", async () => {

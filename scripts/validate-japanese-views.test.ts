@@ -234,106 +234,66 @@ requirements:
     }
   });
 
-  it("preserves exact local and canonical ID link labels with destinations and order", () => {
-    const source =
-      "See [REQ-001](target-a), [feature+🚀](target-b), and [REQ-001/feature+🚀/CASE-001](target-c).";
-    expect(
-      validateJapaneseView(
-        source,
-        source.replace("See", "参照"),
-        "specifications",
-        manifest,
-      ),
-    ).toEqual([]);
-    for (const generated of [
-      source.replace("[REQ-001]", "[REQ-001#]"),
-      source.replace("[feature+🚀]", "[変更]"),
-      source.replace("[REQ-001/feature+🚀/CASE-001]", "[CASE-001]"),
-      source.replace("target-a", "other"),
-      "See [feature+🚀](target-b), [REQ-001](target-a), and [REQ-001/feature+🚀/CASE-001](target-c).",
-      source.replace("[REQ-001](target-a)", "REQ-001"),
-    ]) {
-      expect(
-        validateJapaneseView(source, generated, "specifications", manifest),
-      ).toContain("specifications: protected Markdown idLinks changed");
-    }
-    // Destination/label associations remain protected even when label order is unchanged.
-    expect(
-      validateJapaneseView(
-        source,
-        source
-          .replace("target-a", "target-b")
-          .replace("[feature+🚀](target-b)", "[feature+🚀](target-a)"),
-        "specifications",
-        manifest,
-      ),
-    ).toContain("specifications: protected Markdown idLinks changed");
-  });
-
-  it("compares complete link labels without scanning substrings", () => {
-    const source = "[See REQ-001](target)";
-    expect(
-      validateJapaneseView(
-        source,
-        "[詳細は REQ-001#](target)",
-        "specifications",
-        manifest,
-      ),
-    ).toEqual([]);
-    expect(
-      validateJapaneseView(
-        "[**REQ-001**](target)",
-        "[**変更**](target)",
-        "specifications",
-        manifest,
-      ),
-    ).toContain("specifications: protected Markdown idLinks changed");
-    const punctuationManifest = parseManifest(`
+  it("allows human-readable link labels to translate even when they match manifest IDs", () => {
+    const loginManifest = parseManifest(`
 version: 1
 sources: { requirements: [req.md], specifications: [spec.md] }
 verification: { layers: [unit] }
 requirements:
-  - id: foo#bar
+  - id: Login
     scenarios:
-      - id: feature+🚀
+      - id: scenario
         cases: [{ id: case, verify: [unit] }]
 `).value!;
+    const source = "See [Login](some-target) for details.";
+    const japanese = "詳細は [ログイン](some-target) を参照してください。";
     expect(
-      validateJapaneseView(
-        "[foo#bar](target)",
-        "[foo](target)",
-        "specifications",
-        punctuationManifest,
-      ),
-    ).toContain("specifications: protected Markdown idLinks changed");
-  });
-
-  it("preserves exact ID labels in reference-style links", () => {
-    const source = "See [REQ-001][req].\n\n[req]: some-target\n";
-    expect(
-      validateJapaneseView(
-        source,
-        source.replace("See", "参照"),
-        "specifications",
-        manifest,
-      ),
+      validateJapaneseView(source, japanese, "requirements", loginManifest),
     ).toEqual([]);
     expect(
       validateJapaneseView(
         source,
-        source.replace("[REQ-001]", "[変更]"),
-        "specifications",
-        manifest,
+        japanese.replace("some-target", "different-target"),
+        "requirements",
+        loginManifest,
       ),
-    ).toContain("specifications: protected Markdown idLinks changed");
+    ).toContain("requirements: protected Markdown links changed");
+    const referenceSource = "See [Login][ref].\n\n[ref]: some-target\n";
+    const referenceJapanese =
+      "詳細は [ログイン][ref] を参照してください。\n\n[ref]: some-target\n";
     expect(
       validateJapaneseView(
-        source,
-        source.replace("some-target", "other"),
-        "specifications",
-        manifest,
+        referenceSource,
+        referenceJapanese,
+        "requirements",
+        loginManifest,
       ),
-    ).toContain("specifications: protected Markdown references changed");
+    ).toEqual([]);
+    expect(
+      validateJapaneseView(
+        referenceSource,
+        referenceJapanese.replace("some-target", "different-target"),
+        "requirements",
+        loginManifest,
+      ),
+    ).toContain("requirements: protected Markdown references changed");
+  });
+
+  it("does not assign Moura reference semantics to local or canonical ID link labels", () => {
+    for (const label of [
+      "REQ-001",
+      "feature+🚀",
+      "REQ-001/feature+🚀/CASE-001",
+    ]) {
+      expect(
+        validateJapaneseView(
+          `See [${label}](target).`,
+          "詳細は [説明](target) を参照してください。",
+          "specifications",
+          manifest,
+        ),
+      ).toEqual([]);
+    }
   });
 
   it("preserves inline paths, URLs, and image destinations", () => {

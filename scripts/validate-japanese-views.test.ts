@@ -296,6 +296,38 @@ requirements:
     }
   });
 
+  it("preserves optional link, image, and reference titles while translating labels", () => {
+    for (const [source, japanese, category] of [
+      [
+        'See [guide](target "English help").',
+        '参照 [案内](target "English help")。',
+        "links",
+      ],
+      [
+        '![diagram](image.png "English help")',
+        '![構成図](image.png "English help")',
+        "links",
+      ],
+      [
+        'See [guide][ref].\n\n[ref]: target "English help"\n',
+        '参照 [案内][ref]。\n\n[ref]: target "English help"\n',
+        "references",
+      ],
+    ]) {
+      expect(
+        validateJapaneseView(source!, japanese!, "specifications", manifest),
+      ).toEqual([]);
+      expect(
+        validateJapaneseView(
+          source!,
+          japanese!.replace("English help", "日本語の説明"),
+          "specifications",
+          manifest,
+        ),
+      ).toContain(`specifications: protected Markdown ${category} changed`);
+    }
+  });
+
   it("preserves inline paths, URLs, and image destinations", () => {
     const source =
       "Run `moura validate .` on `docs/req.md`. Visit <https://example.com/docs> and ![diagram](diagram.png).";

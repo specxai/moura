@@ -16,12 +16,13 @@ The OpenAI integration is deliberately repository-local automation for this
 proof of concept. It is not a Moura CLI feature or a public translation-provider
 contract.
 
-Generated Japanese views preserve parsed Moura heading IDs, hierarchy, and order,
-and explicitly structured machine-relevant Markdown: code, HTML, link/image
-destinations, and reference definitions, including their containing Markdown
-blocks. Human-readable link labels may be translated even when their text
-matches a manifest ID. The validator does not infer Moura reference semantics
-from link labels or arbitrary natural-language prose, or validate translation
-meaning. It checks prose block preservation, not semantic equivalence. No prose
-identifier delimiter is required. This PoC does not define Moura reference
-syntax, anchors, or link-target resolution.
+Generated Japanese views preserve parsed Moura heading IDs, hierarchy, and
+order, and explicitly structured machine-relevant Markdown: code, HTML,
+link/image destinations and optional titles, and reference
+identifiers/definitions, including their containing Markdown blocks. Human-
+readable link labels may be translated even when their text matches a manifest
+ID. The validator does not infer Moura reference semantics from link labels or
+arbitrary natural-language prose, or validate translation meaning. It checks
+prose block preservation, not semantic equivalence. No prose identifier
+delimiter is required. This PoC does not define Moura reference syntax,
+anchors, or link-target resolution.

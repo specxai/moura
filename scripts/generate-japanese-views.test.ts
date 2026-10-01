@@ -77,6 +77,9 @@ describe("Japanese view generation", () => {
     expect(instructions).toContain(
       "reference-identifier case/whitespace normalization",
     );
+    expect(instructions).toContain(
+      "Keep nonempty human-readable content in headings and paragraphs",
+    );
     expect(instructions).not.toContain("insert whitespace");
     expect(instructions).not.toContain("manifest local or canonical ID");
   });

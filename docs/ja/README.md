@@ -25,7 +25,8 @@ manifest ID. Reference identifiers are compared using Markdown's
 case/whitespace normalization rather than their original source spelling. The
 validator does not infer Moura reference semantics from link labels or
 arbitrary natural-language prose, or validate translation meaning. It checks
-prose block preservation, including content presence in headings and paragraphs,
-not semantic equivalence. No prose identifier
+prose block preservation, including content presence in headings and paragraphs.
+Traceability heading IDs and protected code/HTML/autolinks do not substitute for
+translatable prose content. It checks structural presence, not semantic equivalence. No prose identifier
 delimiter is required. This PoC does not define Moura reference syntax,
 anchors, or link-target resolution.

@@ -128,6 +128,111 @@ describe("Japanese view integrity", () => {
     ).toEqual(["requirements: Markdown block structure changed"]);
   });
 
+  it("does not let a traceability heading ID mask omitted prose", () => {
+    expect(
+      validateJapaneseView(
+        "## REQ-001 Publish views",
+        "## REQ-001 公開する",
+        "requirements",
+        manifest,
+      ),
+    ).toEqual([]);
+    expect(
+      validateJapaneseView(
+        "## REQ-001",
+        "## REQ-001",
+        "requirements",
+        manifest,
+      ),
+    ).toEqual([]);
+    expect(
+      validateJapaneseView(
+        "## REQ-001 Publish views",
+        "## REQ-001",
+        "requirements",
+        manifest,
+      ),
+    ).toEqual(["requirements: Markdown block structure changed"]);
+    for (const label of [
+      "REQ-001 Read a file",
+      "feature+🚀 Validate input",
+      "CASE-001 Keep machine values",
+    ]) {
+      expect(
+        validateJapaneseView(
+          canonical,
+          canonical.replace(label, label.split(" ")[0]!),
+          "specifications",
+          manifest,
+        ),
+      ).toEqual(["specifications: Markdown block structure changed"]);
+    }
+  });
+
+  it("does not let protected code or HTML mask omitted prose", () => {
+    for (const protectedText of [
+      "`moura validate .`",
+      "<https://example.com/docs>",
+      '<span data-id="fixed"></span>',
+    ]) {
+      expect(
+        validateJapaneseView(
+          `Run ${protectedText}`,
+          `実行 ${protectedText}`,
+          "requirements",
+          manifest,
+        ),
+      ).toEqual([]);
+      expect(
+        validateJapaneseView(
+          `Run ${protectedText}`,
+          protectedText,
+          "requirements",
+          manifest,
+        ),
+      ).toContain("requirements: Markdown block structure changed");
+      expect(
+        validateJapaneseView(
+          protectedText,
+          protectedText,
+          "requirements",
+          manifest,
+        ),
+      ).toEqual([]);
+    }
+  });
+
+  it("uses raw parser heading IDs even when Markdown formats the token", () => {
+    for (const id of ["**Login**", "foo#bar", "feature+🚀"]) {
+      const headingManifest = parseManifest(`
+version: 1
+sources: { requirements: [req.md], specifications: [spec.md] }
+verification: { layers: [unit] }
+requirements:
+  - id: "${id}"
+    scenarios:
+      - id: scenario
+        cases: [{ id: case, verify: [unit] }]
+`).value!;
+      expect(
+        validateJapaneseView(
+          `## ${id} Description`,
+          `## ${id} 説明`,
+          "requirements",
+          headingManifest,
+        ),
+      ).toEqual([]);
+      expect(
+        validateJapaneseView(
+          `## ${id} Description`,
+          `## ${id}`,
+          "requirements",
+          headingManifest,
+        ),
+      ).toEqual(["requirements: Markdown block structure changed"]);
+    }
+  });
+
   it("detects traceability identifier and hierarchy drift", () => {
     const changedId = translated.replace("CASE-001", "CASE-002");
     const changedHierarchy = translated.replace(

@@ -7,8 +7,10 @@ import { unified } from "unified";
 
 import { parseManifest, type MouraManifest } from "../src/manifest.js";
 import {
+  atxHeading,
   parseRequirementMarkdown,
   parseSpecificationMarkdown,
+  type MarkdownDocument,
 } from "../src/markdown.js";
 import { isDirectExecution } from "./direct-execution.js";
 import { GENERATED_VIEW_NOTICE } from "./generate-japanese-views.js";
@@ -39,6 +41,7 @@ interface AstNode {
   readonly start?: unknown;
   readonly spread?: unknown;
   readonly checked?: unknown;
+  readonly position?: { readonly start: { readonly offset?: number } };
 }
 
 export function validateJapaneseView(
@@ -62,8 +65,16 @@ export function validateJapaneseView(
     problems.push(`${role}: traceability identifiers or hierarchy changed`);
 
   if (
-    JSON.stringify(blockStructure(canonical)) !==
-    JSON.stringify(blockStructure(withoutGeneratedNotice(generated)))
+    JSON.stringify(
+      blockStructure(canonical, canonicalStructure.value, role),
+    ) !==
+    JSON.stringify(
+      blockStructure(
+        withoutGeneratedNotice(generated),
+        generatedStructure.value,
+        role,
+      ),
+    )
   )
     problems.push(`${role}: Markdown block structure changed`);
 
@@ -154,12 +165,54 @@ function withoutGeneratedNotice(markdown: string): string {
 }
 
 /** Capture block topology and content presence, never translated prose identity. */
-function blockStructure(markdown: string): unknown {
+function blockStructure(
+  markdown: string,
+  traceability: unknown,
+  role: DocumentRole,
+): unknown {
   const tree = unified().use(remarkParse).parse(markdown) as Root;
-  return blockChildren(tree as AstNode);
+  const ids = new Set<string>();
+  if (role === "requirements") {
+    for (const id of traceability as readonly string[]) ids.add(id);
+  } else {
+    const document = traceability as MarkdownDocument;
+    for (const requirement of document.requirements) {
+      ids.add(requirement.id);
+      for (const scenario of requirement.scenarios) {
+        ids.add(scenario.id);
+        for (const id of scenario.cases) ids.add(id);
+      }
+    }
+  }
+  const headingProse = new Map<AstNode, boolean>();
+  for (const node of tree.children) {
+    if (node.type !== "heading") continue;
+    const heading = atxHeading(node, markdown);
+    if (!heading || !ids.has(heading.token)) continue;
+    const source = markdown.slice(
+      node.position!.start.offset!,
+      node.position!.end.offset!,
+    );
+    // The existing parser recognizes this document-level heading token.
+    // Remove only that declaration, never search ordinary prose for IDs.
+    const tokenStart = source.indexOf(heading.token, node.depth);
+    const withoutId =
+      source.slice(0, tokenStart) +
+      source.slice(tokenStart + heading.token.length);
+    const proseTree = unified().use(remarkParse).parse(withoutId) as Root;
+    headingProse.set(
+      node as AstNode,
+      hasProse(proseTree as AstNode, withoutId),
+    );
+  }
+  return blockChildren(tree as AstNode, headingProse, markdown);
 }
 
-function blockChildren(node: AstNode): readonly unknown[] {
+function blockChildren(
+  node: AstNode,
+  headingProse: ReadonlyMap<AstNode, boolean>,
+  markdown: string,
+): readonly unknown[] {
   if (!Array.isArray(node.children)) return [];
   return node.children.flatMap((child) => {
     const block = child as AstNode;
@@ -168,7 +221,10 @@ function blockChildren(node: AstNode): readonly unknown[] {
       {
         type: block.type,
         ...(block.type === "heading" || block.type === "paragraph"
-          ? { hasContent: hasContent(block) }
+          ? {
+              hasContent: hasContent(block),
+              hasProse: headingProse.get(block) ?? hasProse(block, markdown),
+            }
           : {}),
         ...(block.type === "heading" ? { depth: block.depth } : {}),
         ...(block.type === "list"
@@ -181,7 +237,7 @@ function blockChildren(node: AstNode): readonly unknown[] {
         ...(block.type === "listItem"
           ? { checked: block.checked, spread: block.spread }
           : {}),
-        children: blockChildren(block),
+        children: blockChildren(block, headingProse, markdown),
       },
     ];
   });
@@ -195,6 +251,24 @@ function hasContent(node: AstNode): boolean {
   return (
     Array.isArray(node.children) &&
     node.children.some((child) => hasContent(child as AstNode))
+  );
+}
+
+/** Protected machine nodes cannot stand in for translatable prose. */
+function hasProse(node: AstNode, markdown: string): boolean {
+  if (node.type === "inlineCode" || node.type === "html") return false;
+  // Autolink text is the protected URL itself, not a translatable label.
+  if (
+    node.type === "link" &&
+    markdown[node.position?.start.offset ?? -1] === "<"
+  )
+    return false;
+  if (node.type === "text")
+    return typeof node.value === "string" && node.value.trim().length > 0;
+  if (typeof node.alt === "string" && node.alt.trim().length > 0) return true;
+  return (
+    Array.isArray(node.children) &&
+    node.children.some((child) => hasProse(child as AstNode, markdown))
   );
 }
 

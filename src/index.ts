@@ -6,7 +6,15 @@ export * from "./adapters/allure.js";
 export * from "./id.js";
 export * from "./model.js";
 export * from "./manifest.js";
-export * from "./markdown.js";
+export {
+  locateRequirementMarkdown,
+  parseRequirementMarkdown,
+  parseSpecificationMarkdown,
+  type MarkdownDocument,
+  type MarkdownRequirement,
+  type MarkdownScenario,
+  type RequirementSourceLocation,
+} from "./markdown.js";
 export * from "./project.js";
 export * from "./validation.js";
 export * from "./validator.js";

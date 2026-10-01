@@ -296,6 +296,31 @@ requirements:
     }
   });
 
+  it("preserves Markdown reference identity under case and whitespace normalization", () => {
+    for (const [source, japanese] of [
+      [
+        "See [guide][Docs].\n\n[Docs]: target\n",
+        "参照 [案内][docs]。\n\n[docs]: target\n",
+      ],
+      [
+        "See [guide][Docs Help].\n\n[Docs Help]: target\n",
+        "参照 [案内][docs   help]。\n\n[docs help]: target\n",
+      ],
+    ]) {
+      expect(
+        validateJapaneseView(source!, japanese!, "specifications", manifest),
+      ).toEqual([]);
+      expect(
+        validateJapaneseView(
+          source!,
+          japanese!.replaceAll("docs", "other"),
+          "specifications",
+          manifest,
+        ),
+      ).toContain("specifications: protected Markdown references changed");
+    }
+  });
+
   it("preserves optional link, image, and reference titles while translating labels", () => {
     for (const [source, japanese, category] of [
       [

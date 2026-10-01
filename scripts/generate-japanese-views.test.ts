@@ -74,6 +74,9 @@ describe("Japanese view generation", () => {
       "does not infer Moura references from arbitrary natural-language prose",
     );
     expect(instructions).toContain("destinations and optional titles");
+    expect(instructions).toContain(
+      "reference-identifier case/whitespace normalization",
+    );
     expect(instructions).not.toContain("insert whitespace");
     expect(instructions).not.toContain("manifest local or canonical ID");
   });

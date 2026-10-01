@@ -288,3 +288,5 @@ and optional titles, and reference identifiers/definitions, including their
 containing blocks. Human-readable link labels may be translated even when they
 match manifest IDs. The validator does not infer Moura references from link
 labels or arbitrary natural-language prose, or validate translation meaning.
+Reference identifiers are compared using Markdown's case/whitespace
+normalization rather than their original source spelling.

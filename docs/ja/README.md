@@ -19,9 +19,11 @@ contract.
 Generated Japanese views preserve parsed Moura heading IDs, hierarchy, and
 order, and explicitly structured machine-relevant Markdown: code, HTML,
 link/image destinations and optional titles, and reference
-identifiers/definitions, including their containing Markdown blocks. Human-
-readable link labels may be translated even when their text matches a manifest
-ID. The validator does not infer Moura reference semantics from link labels or
+identifiers/definitions, including their containing Markdown blocks.
+Human-readable link labels may be translated even when their text matches a
+manifest ID. Reference identifiers are compared using Markdown's
+case/whitespace normalization rather than their original source spelling. The
+validator does not infer Moura reference semantics from link labels or
 arbitrary natural-language prose, or validate translation meaning. It checks
 prose block preservation, not semantic equivalence. No prose identifier
 delimiter is required. This PoC does not define Moura reference syntax,

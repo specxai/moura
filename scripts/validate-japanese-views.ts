@@ -26,6 +26,7 @@ interface ProtectedMarkdown {
 interface AstNode {
   readonly type?: unknown;
   readonly value?: unknown;
+  readonly alt?: unknown;
   readonly url?: unknown;
   readonly title?: unknown;
   readonly lang?: unknown;
@@ -152,7 +153,7 @@ function withoutGeneratedNotice(markdown: string): string {
     : markdown;
 }
 
-/** Capture block topology only; translated inline prose is intentionally free. */
+/** Capture block topology and content presence, never translated prose identity. */
 function blockStructure(markdown: string): unknown {
   const tree = unified().use(remarkParse).parse(markdown) as Root;
   return blockChildren(tree as AstNode);
@@ -166,6 +167,9 @@ function blockChildren(node: AstNode): readonly unknown[] {
     return [
       {
         type: block.type,
+        ...(block.type === "heading" || block.type === "paragraph"
+          ? { hasContent: hasContent(block) }
+          : {}),
         ...(block.type === "heading" ? { depth: block.depth } : {}),
         ...(block.type === "list"
           ? {
@@ -181,6 +185,17 @@ function blockChildren(node: AstNode): readonly unknown[] {
       },
     ];
   });
+}
+
+/** Non-whitespace text, code/HTML, or image alt text constitutes block content. */
+function hasContent(node: AstNode): boolean {
+  if (typeof node.value === "string" && node.value.trim().length > 0)
+    return true;
+  if (typeof node.alt === "string" && node.alt.trim().length > 0) return true;
+  return (
+    Array.isArray(node.children) &&
+    node.children.some((child) => hasContent(child as AstNode))
+  );
 }
 
 function isInlineNode(type: unknown): boolean {

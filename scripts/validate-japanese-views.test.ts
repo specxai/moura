@@ -91,6 +91,43 @@ describe("Japanese view integrity", () => {
     ).toEqual([]);
   });
 
+  it("preserves heading content presence without comparing wording", () => {
+    for (const [source, japanese] of [
+      ["# Requirements", "# 要件"],
+      ["# **Requirements**", "# 要"],
+      ["#", "#"],
+      ["# ![Diagram](diagram.png)", "# ![構成図](diagram.png)"],
+    ]) {
+      expect(
+        validateJapaneseView(source!, japanese!, "requirements", manifest),
+      ).toEqual([]);
+    }
+    for (const empty of ["#", "#   ", "#\n"]) {
+      expect(
+        validateJapaneseView("# Requirements", empty, "requirements", manifest),
+      ).toContain("requirements: Markdown block structure changed");
+    }
+  });
+
+  it("detects loss of paragraph content while retaining its link structure", () => {
+    expect(
+      validateJapaneseView(
+        "[Guidance](target)",
+        "[案内](target)",
+        "requirements",
+        manifest,
+      ),
+    ).toEqual([]);
+    expect(
+      validateJapaneseView(
+        "[Guidance](target)",
+        "[](target)",
+        "requirements",
+        manifest,
+      ),
+    ).toEqual(["requirements: Markdown block structure changed"]);
+  });
+
   it("detects traceability identifier and hierarchy drift", () => {
     const changedId = translated.replace("CASE-001", "CASE-002");
     const changedHierarchy = translated.replace(

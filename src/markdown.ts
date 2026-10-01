@@ -171,7 +171,11 @@ function headings(text: string): Heading[] {
   });
 }
 
-function atxHeading(node: MdastHeading, markdown: string): Heading | undefined {
+/** Read the raw declaration token of an ATX heading without an ID alphabet. */
+export function atxHeading(
+  node: MdastHeading,
+  markdown: string,
+): Heading | undefined {
   const start = node.position?.start.offset;
   const end = node.position?.end.offset;
   if (start === undefined || end === undefined) return undefined;

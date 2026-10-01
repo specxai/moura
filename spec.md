@@ -274,3 +274,19 @@ Moura's internal dogfooding helpers.
 
 The verified example generates a non-empty `moura-report/index.html` containing
 its canonical Case identity.
+
+## REQ-008
+
+### SCN-001 Generate repository Japanese views
+
+#### CASE-001 Preserve traceability in generated views
+
+Repository-local validation allows translated human-readable prose while
+preserving parsed Requirement → Scenario → Case IDs, hierarchy, and order,
+prose blocks, code, commands, paths, HTML, and Markdown link/image destinations
+and optional titles, and reference identifiers/definitions, including their
+containing blocks. Human-readable link labels may be translated even when they
+match manifest IDs. The validator does not infer Moura references from link
+labels or arbitrary natural-language prose, or validate translation meaning.
+Reference identifiers are compared using Markdown's case/whitespace
+normalization rather than their original source spelling.

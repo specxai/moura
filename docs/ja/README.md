@@ -18,7 +18,7 @@ contract.
 
 Generated Japanese views preserve Moura traceability structure and explicitly
 structured machine-relevant Markdown: code, HTML, link/image destinations, and
-reference definitions. Link labels that exactly match manifest local or canonical
+reference definitions, including their containing Markdown blocks. Link labels that exactly match manifest local or canonical
 IDs are also preserved with their destinations and occurrence order; other link
 labels may be translated. The validator does not infer Moura references from
 arbitrary natural-language prose or validate translation meaning. It checks prose

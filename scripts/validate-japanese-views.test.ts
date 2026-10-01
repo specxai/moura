@@ -356,6 +356,45 @@ requirements:
     }
   });
 
+  it("rejects moving protected inline nodes between prose blocks", () => {
+    for (const protectedText of [
+      "`moura validate .`",
+      "`docs/req.md`",
+      "[details](some-target)",
+      "![diagram](diagram.png)",
+      '<span data-id="fixed"></span>',
+      "[REQ-001](target)",
+    ]) {
+      const source = `First ${protectedText}.\n\nSecond.`;
+      const moved = `First.\n\nSecond ${protectedText}.`;
+      expect(
+        validateJapaneseView(source, moved, "specifications", manifest),
+      ).toContain("specifications: protected Markdown placements changed");
+    }
+    const referenceSource =
+      "First [details][ref].\n\nSecond.\n\n[ref]: target\n";
+    const referenceMoved =
+      "First.\n\nSecond [details][ref].\n\n[ref]: target\n";
+    expect(
+      validateJapaneseView(
+        referenceSource,
+        referenceMoved,
+        "specifications",
+        manifest,
+      ),
+    ).toContain("specifications: protected Markdown placements changed");
+  });
+
+  it("rejects moving a protected command to another Case", () => {
+    const source =
+      "## REQ-001\n### feature+🚀\n#### CASE-001\n\nRun `moura validate .`.\n\n## REQ-002\n### SCN-002\n#### CASE-002\n\nOther guidance.";
+    const moved =
+      "## REQ-001\n### feature+🚀\n#### CASE-001\n\nRun.\n\n## REQ-002\n### SCN-002\n#### CASE-002\n\nOther guidance `moura validate .`.";
+    expect(
+      validateJapaneseView(source, moved, "specifications", orderedManifest),
+    ).toContain("specifications: protected Markdown placements changed");
+  });
+
   it("preserves HTML tags exactly", () => {
     const source = '<span data-id="REQ-001">fixed</span>';
     expect(

@@ -22,6 +22,7 @@ interface ProtectedMarkdown {
   readonly links: readonly string[];
   readonly idLinks: readonly string[];
   readonly references: readonly string[];
+  readonly placements: readonly string[];
 }
 
 interface AstNode {
@@ -69,7 +70,10 @@ export function validateJapaneseView(
 
   const protectedIdentifiers = manifestIdentifiers(manifest);
   const canonicalProtected = protectedMarkdown(canonical, protectedIdentifiers);
-  const generatedProtected = protectedMarkdown(generated, protectedIdentifiers);
+  const generatedProtected = protectedMarkdown(
+    withoutGeneratedNotice(generated),
+    protectedIdentifiers,
+  );
   for (const key of Object.keys(
     canonicalProtected,
   ) as (keyof ProtectedMarkdown)[]) {
@@ -108,8 +112,22 @@ function protectedMarkdown(
   const links: string[] = [];
   const idLinks: string[] = [];
   const references: string[] = [];
+  const placements: string[] = [];
 
-  walk(tree as AstNode, (node) => {
+  walk(tree as AstNode, (node, blockPath) => {
+    if (
+      [
+        "code",
+        "inlineCode",
+        "html",
+        "link",
+        "image",
+        "linkReference",
+        "imageReference",
+        "definition",
+      ].includes(String(node.type))
+    )
+      placements.push(JSON.stringify([node.type, blockPath]));
     if (node.type === "code")
       code.push(
         JSON.stringify([node.lang ?? null, node.meta ?? null, node.value]),
@@ -144,7 +162,7 @@ function protectedMarkdown(
     }
   });
 
-  return { code, html, links, idLinks, references };
+  return { code, html, links, idLinks, references, placements };
 }
 
 /** Compare the complete explicit link label, never substrings of prose. */
@@ -227,10 +245,23 @@ function manifestIdentifiers(manifest: MouraManifest): ReadonlySet<string> {
   return new Set(identifiers);
 }
 
-function walk(node: AstNode, visit: (node: AstNode) => void): void {
-  visit(node);
+/** Track containing blocks without making translated prose or inline formatting identity. */
+function walk(
+  node: AstNode,
+  visit: (node: AstNode, blockPath: readonly number[]) => void,
+  blockPath: readonly number[] = [],
+): void {
+  visit(node, blockPath);
   if (!Array.isArray(node.children)) return;
-  for (const child of node.children) walk(child as AstNode, visit);
+  let blockIndex = 0;
+  for (const child of node.children) {
+    const next = child as AstNode;
+    walk(
+      next,
+      visit,
+      isInlineNode(next.type) ? blockPath : [...blockPath, blockIndex++],
+    );
+  }
 }
 
 async function main(): Promise<void> {

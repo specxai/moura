@@ -45,6 +45,42 @@ describe("Japanese view generation", () => {
     );
   });
 
+  it("sends the structured-information contract to the translation API", async () => {
+    mockResponse({
+      status: "completed",
+      output: [
+        { content: [{ type: "output_text", text: "REQ-001 は必須です。" }] },
+      ],
+    });
+    await translateMarkdown(
+      "REQ-001 is required.",
+      "req.md",
+      "test-key",
+      "test-model",
+    );
+
+    const request = vi.mocked(fetch).mock.calls[0]![1]!;
+    const body = JSON.parse(request.body as string) as {
+      input: { role: string; content: string }[];
+    };
+    const instructions = body.input.find(
+      (item) => item.role === "system",
+    )!.content;
+    expect(instructions).toContain("heading IDs, hierarchy, and order exactly");
+    expect(instructions).toContain(
+      "Translate human-readable Markdown link labels",
+    );
+    expect(instructions).toContain(
+      "does not infer Moura references from arbitrary natural-language prose",
+    );
+    expect(instructions).toContain("destinations and optional titles");
+    expect(instructions).toContain(
+      "reference-identifier case/whitespace normalization",
+    );
+    expect(instructions).not.toContain("insert whitespace");
+    expect(instructions).not.toContain("manifest local or canonical ID");
+  });
+
   it("returns output text from a completed response", async () => {
     mockResponse({
       status: "completed",

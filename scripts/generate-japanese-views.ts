@@ -20,7 +20,7 @@ interface OpenAIResponse {
   readonly error?: { readonly message?: unknown };
 }
 
-const notice = `> **Generated file — do not edit.** This Japanese view is derived from the corresponding English document in the repository root. The English document is authoritative.
+export const GENERATED_VIEW_NOTICE = `> **Generated file — do not edit.** This Japanese view is derived from the corresponding English document in the repository root. The English document is authoritative.
 >
 > **生成ファイル — 編集しないでください。** この日本語版はリポジトリ直下の対応する英語文書から生成されています。英語文書が正本です。
 
@@ -44,7 +44,7 @@ export async function translateMarkdown(
         {
           role: "system",
           content:
-            "Translate Markdown prose from English to natural Japanese. Return only the complete translated Markdown, without an outer code fence or commentary. Preserve every Markdown structural relationship. Copy all Requirement, Scenario, and Case IDs, canonical identifiers, inline code, fenced code, commands, file paths, URLs, configuration keys and values, and HTML exactly. Translate only human-readable prose.",
+            "Translate Markdown prose from English to natural Japanese. Return only the complete translated Markdown, without an outer code fence or commentary. Preserve every Markdown structural relationship and every prose block. Preserve Moura Requirement, Scenario, and Case heading IDs, hierarchy, and order exactly. Copy inline code, fenced code, commands, file paths, URLs, configuration keys and values, HTML, and Markdown link/image and reference-definition destinations and optional titles exactly. Preserve reference link/definition associations under Markdown's reference-identifier case/whitespace normalization. Translate human-readable Markdown link labels without inferring Moura reference semantics from their text. Translate only human-readable prose. Generated Japanese views preserve Moura traceability structure and explicitly structured machine-relevant Markdown. The validator does not infer Moura references from arbitrary natural-language prose.",
         },
         {
           role: "user",
@@ -77,7 +77,7 @@ export async function translateMarkdown(
     throw new Error(
       `OpenAI wrapped ${source} in an outer code fence; generation aborted`,
     );
-  return `${notice}${translated.trim()}\n`;
+  return `${GENERATED_VIEW_NOTICE}${translated.trim()}\n`;
 }
 
 async function main(): Promise<void> {

@@ -5,13 +5,13 @@ import type { Root } from "mdast";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 
-import { canonicalId } from "../src/id.js";
 import { parseManifest, type MouraManifest } from "../src/manifest.js";
 import {
   parseRequirementMarkdown,
   parseSpecificationMarkdown,
 } from "../src/markdown.js";
 import { isDirectExecution } from "./direct-execution.js";
+import { GENERATED_VIEW_NOTICE } from "./generate-japanese-views.js";
 
 export type DocumentRole = "requirements" | "specifications";
 
@@ -19,8 +19,8 @@ interface ProtectedMarkdown {
   readonly code: readonly string[];
   readonly html: readonly string[];
   readonly links: readonly string[];
-  readonly identifiers: readonly string[];
   readonly references: readonly string[];
+  readonly placements: readonly string[];
 }
 
 interface AstNode {
@@ -33,6 +33,11 @@ interface AstNode {
   readonly identifier?: unknown;
   readonly referenceType?: unknown;
   readonly children?: unknown;
+  readonly depth?: unknown;
+  readonly ordered?: unknown;
+  readonly start?: unknown;
+  readonly spread?: unknown;
+  readonly checked?: unknown;
 }
 
 export function validateJapaneseView(
@@ -55,9 +60,16 @@ export function validateJapaneseView(
   )
     problems.push(`${role}: traceability identifiers or hierarchy changed`);
 
-  const protectedIdentifiers = manifestIdentifiers(manifest);
-  const canonicalProtected = protectedMarkdown(canonical, protectedIdentifiers);
-  const generatedProtected = protectedMarkdown(generated, protectedIdentifiers);
+  if (
+    JSON.stringify(blockStructure(canonical)) !==
+    JSON.stringify(blockStructure(withoutGeneratedNotice(generated)))
+  )
+    problems.push(`${role}: Markdown block structure changed`);
+
+  const canonicalProtected = protectedMarkdown(canonical);
+  const generatedProtected = protectedMarkdown(
+    withoutGeneratedNotice(generated),
+  );
   for (const key of Object.keys(
     canonicalProtected,
   ) as (keyof ProtectedMarkdown)[]) {
@@ -86,18 +98,28 @@ function structure(
   };
 }
 
-function protectedMarkdown(
-  markdown: string,
-  protectedIdentifiers: readonly string[],
-): ProtectedMarkdown {
+function protectedMarkdown(markdown: string): ProtectedMarkdown {
   const tree = unified().use(remarkParse).parse(markdown) as Root;
   const code: string[] = [];
   const html: string[] = [];
   const links: string[] = [];
-  const identifiers: string[] = [];
   const references: string[] = [];
+  const placements: string[] = [];
 
-  walk(tree as AstNode, (node) => {
+  walk(tree as AstNode, (node, blockPath) => {
+    if (
+      [
+        "code",
+        "inlineCode",
+        "html",
+        "link",
+        "image",
+        "linkReference",
+        "imageReference",
+        "definition",
+      ].includes(String(node.type))
+    )
+      placements.push(JSON.stringify([node.type, blockPath]));
     if (node.type === "code")
       code.push(
         JSON.stringify([node.lang ?? null, node.meta ?? null, node.value]),
@@ -119,48 +141,83 @@ function protectedMarkdown(
           node.title ?? null,
         ]),
       );
-    if (typeof node.value === "string") {
-      const value = node.value;
-      let offset = 0;
-      while (offset < value.length) {
-        const identifier = protectedIdentifiers.find((candidate) =>
-          value.startsWith(candidate, offset),
-        );
-        if (identifier) {
-          identifiers.push(identifier);
-          offset += identifier.length;
-        } else {
-          offset += 1;
-        }
-      }
-    }
   });
 
-  return { code, html, links, identifiers, references };
+  return { code, html, links, references, placements };
 }
 
-function manifestIdentifiers(manifest: MouraManifest): readonly string[] {
-  const identifiers = manifest.requirements.flatMap((requirement) => [
-    requirement.localId,
-    canonicalId([requirement]),
-    ...requirement.scenarios.flatMap((scenario) => [
-      scenario.localId,
-      canonicalId([requirement, scenario]),
-      ...scenario.cases.flatMap((testCase) => [
-        testCase.localId,
-        canonicalId([requirement, scenario, testCase]),
-      ]),
-    ]),
-  ]);
-  return [...new Set(identifiers)].sort(
-    (left, right) => right.length - left.length || left.localeCompare(right),
+function withoutGeneratedNotice(markdown: string): string {
+  return markdown.startsWith(GENERATED_VIEW_NOTICE)
+    ? markdown.slice(GENERATED_VIEW_NOTICE.length)
+    : markdown;
+}
+
+/** Capture block topology only; translated inline prose is intentionally free. */
+function blockStructure(markdown: string): unknown {
+  const tree = unified().use(remarkParse).parse(markdown) as Root;
+  return blockChildren(tree as AstNode);
+}
+
+function blockChildren(node: AstNode): readonly unknown[] {
+  if (!Array.isArray(node.children)) return [];
+  return node.children.flatMap((child) => {
+    const block = child as AstNode;
+    if (isInlineNode(block.type)) return [];
+    return [
+      {
+        type: block.type,
+        ...(block.type === "heading" ? { depth: block.depth } : {}),
+        ...(block.type === "list"
+          ? {
+              ordered: block.ordered,
+              start: block.start,
+              spread: block.spread,
+            }
+          : {}),
+        ...(block.type === "listItem"
+          ? { checked: block.checked, spread: block.spread }
+          : {}),
+        children: blockChildren(block),
+      },
+    ];
+  });
+}
+
+function isInlineNode(type: unknown): boolean {
+  return (
+    typeof type === "string" &&
+    [
+      "text",
+      "emphasis",
+      "strong",
+      "delete",
+      "inlineCode",
+      "break",
+      "link",
+      "image",
+      "linkReference",
+      "imageReference",
+    ].includes(type)
   );
 }
 
-function walk(node: AstNode, visit: (node: AstNode) => void): void {
-  visit(node);
+/** Track containing blocks without making translated prose or inline formatting identity. */
+function walk(
+  node: AstNode,
+  visit: (node: AstNode, blockPath: readonly number[]) => void,
+  blockPath: readonly number[] = [],
+): void {
+  visit(node, blockPath);
   if (!Array.isArray(node.children)) return;
-  for (const child of node.children) walk(child as AstNode, visit);
+  let blockIndex = 0;
+  for (const child of node.children) {
+    const next = child as AstNode;
+    walk(
+      next,
+      visit,
+      isInlineNode(next.type) ? blockPath : [...blockPath, blockIndex++],
+    );
+  }
 }
 
 async function main(): Promise<void> {

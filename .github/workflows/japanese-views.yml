@@ -39,7 +39,19 @@ jobs:
         run: pnpm docs:ja:generate
 
       - name: Validate generated views
+        id: validate
         run: pnpm docs:ja:validate
+
+      - name: Upload Japanese views that failed validation
+        if: ${{ failure() && steps.validate.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: moura-japanese-views-failed-validation
+          path: |
+            docs/ja/req.md
+            docs/ja/spec.md
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Upload Japanese views
         uses: actions/upload-artifact@v4

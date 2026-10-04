@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch: {}
   pull_request: {}
   push:
     branches: [main]
@@ -15,6 +16,9 @@ concurrency:
 jobs:
   quality:
     name: Quality and release checks
+    permissions:
+      contents: read
+      actions: read
     runs-on: ubuntu-latest
 
     steps:
@@ -121,18 +125,35 @@ jobs:
       - name: Check package contents
         run: pnpm pack --dry-run
 
+      - name: Retrieve optional validated Japanese views
+        if: github.repository == 'specxai/moura'
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: pnpm exec tsx scripts/fetch-japanese-views.ts
+
       - name: Assemble quality site
         run: pnpm quality:site
 
+      - name: Upload quality site for PR review
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-site
+          path: _site/
+          retention-days: 14
+          if-no-files-found: error
+
       - name: Upload GitHub Pages artifact
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.repository == 'specxai/moura' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         uses: actions/upload-pages-artifact@v5
         with:
           path: _site/
 
   deploy-pages:
     name: Deploy quality reports
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.repository == 'specxai/moura' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs:
       - quality
       - windows-smoke

@@ -30,3 +30,70 @@ Traceability heading IDs and protected code/HTML/autolinks do not substitute for
 translatable prose content. It checks structural presence, not semantic equivalence. No prose identifier
 delimiter is required. This PoC does not define Moura reference syntax,
 anchors, or link-target resolution.
+
+## Reading views from Quality Reports
+
+The repository [Quality Reports site](https://specxai.github.io/moura/) includes
+Japanese Requirements and Specifications when CI can consume an eligible
+artifact. Pages show escaped, wrapped Markdown, the bilingual generated/read-only
+and English-authoritative notice, links to the canonical English files at the
+actual source commit, and the producer run/artifact identity. These pages are
+presentation only: Moura's configured English sources, parsing, identities,
+evidence, coverage, and canonical Requirement-source snapshots are unchanged.
+
+The consumer searches at most the 300 most recent main workflow-dispatch runs of
+this repository's exact Japanese workflow. It chooses the newest eligible
+success artifact by artifact creation time (including reruns of older runs),
+not the newest generation attempt. Repository, workflow, branch, event, successful
+run status, artifact name, expiration, matching run provenance, and archive
+SHA-256 digest must all pass. Failed-validation debugging artifacts are never
+consumed. A later failed attempt remains visible in the producer workflow and CI
+retrieval summary; an older eligible success is labelled with its actual provenance.
+
+Freshness requires exact byte equality between the producer commit's `req.md`,
+`spec.md`, and `moura.yaml` (read through GitHub at the immutable producer SHA)
+and the current checkout. Structural validity alone does not establish freshness.
+The consumer requires both generated files and their exact bilingual notice,
+and reruns the existing deterministic validator against current canonical inputs.
+Only these two literal ZIP members are read; no archive paths are extracted or
+executed. Retrieval is bounded to 90 seconds, responses/archives to 5 MiB, and
+each document to 1 MiB. The Ubuntu CI reader uses its existing `unzip` utility;
+no rendering or translation dependency is added.
+
+Eligible data is staged in ignored `node_modules/.cache/moura-japanese-views/`,
+with producer identity and SHA-256 digests of all three canonical inputs.
+Assembly rechecks these digests and reruns validation before writing
+`_site/ja/req.html` and `_site/ja/spec.html`. Raw `docs/ja/` files alone never
+qualify for publication. Both stage retrieval and site assembly clear their
+previous generated output, so missing or rejected views cannot leave stale pages.
+
+### Refresh and failure behavior
+
+1. Manually run **Generate Japanese views** on `main` (model override remains
+   available) and require successful generation and validation.
+2. Run **CI** manually on `main` to refresh the site, or wait for the next main
+   push. Both the Linux quality and Windows smoke gates must still succeed before
+   the existing Pages deployment. Dispatches on other branches and PRs do not
+   publish Pages.
+3. Open Japanese Requirements and Specifications from Quality Reports and check
+   the displayed source commit/run identity.
+
+PR CI retains the assembled site as a `quality-site` workflow artifact for
+review without replacing public Pages. Tests exercise both eligible and
+unavailable Japanese states; a PR whose canonical inputs changed correctly
+shows unavailable until a matching trusted main artifact exists.
+
+Generation alone does not deploy Pages. A main code-only change can reuse an
+older artifact if all three canonical input files remain byte-equivalent.
+Changing canonical prose, including this feature's specification update, requires
+a newly generated matching artifact. Success and failed-validation artifacts
+retain the existing 14-day expiration policy; the published static pages persist
+until the next deployment, but an expired artifact cannot be consumed again.
+
+Missing, expired, stale, incomplete, untrusted, unavailable, or validation-rejected
+artifacts produce a concise unavailable state without document links. Retrieval
+and assembly report the reason in CI logs/summary. Canonical reports still build
+and publish under their existing gates; their own failures still fail CI.
+Normal CI needs only read-only GitHub artifact/source access and never calls
+OpenAI or receives `OPENAI_API_KEY`. The producer failure and debug-artifact
+behavior are unchanged.

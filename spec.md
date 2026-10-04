@@ -219,6 +219,16 @@ traceability metadata.
 
 The quality site publishes Requirement Coverage, Allure, and code-coverage
 reports with stable destinations, repository identity, and commit identity.
+Repository quality-site assembly also exposes a complete pair of derived,
+read-only Japanese documentation views only from a trusted successful main
+Japanese generation artifact whose canonical `req.md`, `spec.md`, and
+`moura.yaml` inputs match the current checkout byte for byte and whose output
+passes the existing deterministic validator again. Pages preserve the bilingual
+generated/English-authoritative notice and display actual generation provenance
+with canonical English-source links. Missing or rejected Japanese artifacts
+produce an unavailable state without blocking canonical reports; clean assembly
+removes stale Japanese pages. These presentation artifacts never affect Moura
+parsing, identities, evidence, coverage, or canonical source snapshots.
 
 #### CASE-003 Summarize generated test results for CI
 

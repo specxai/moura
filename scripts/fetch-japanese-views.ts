@@ -33,6 +33,8 @@ interface ProducerRun {
   status: string;
   conclusion: string | null;
   created_at: string;
+  run_started_at: string;
+  run_attempt: number;
   repository: { full_name: string };
   head_repository: { full_name: string };
 }
@@ -160,14 +162,26 @@ export async function selectJapaneseViews(
       runs.push(...response.workflow_runs);
       if (response.workflow_runs.length < 100) break;
     }
+    // The run-list payload's run_started_at is the latest attempt's start,
+    // unlike created_at (original run) or updated_at (completion/status updates).
+    // Pagination during a rerun can repeat a run; retain its highest attempt.
+    const attempts = new Map<number, ProducerRun>();
+    for (const run of runs) {
+      const previous = attempts.get(run.id);
+      if (!previous || run.run_attempt > previous.run_attempt)
+        attempts.set(run.id, run);
+    }
+    runs.splice(0, runs.length, ...attempts.values());
     runs.sort(
       (a, b) =>
-        Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id,
+        Date.parse(b.run_started_at) - Date.parse(a.run_started_at) ||
+        b.run_attempt - a.run_attempt ||
+        b.id - a.id,
     );
     const latest = runs[0];
     if (latest)
       messages.push(
-        `Latest producer attempt ${latest.id}: ${latest.conclusion ?? latest.status}`,
+        `Latest producer attempt ${latest.id} (attempt ${latest.run_attempt}): ${latest.conclusion ?? latest.status}`,
       );
     const candidates: { run: ProducerRun; artifact: Artifact }[] = [];
     for (const run of runs) {

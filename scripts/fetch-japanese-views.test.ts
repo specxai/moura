@@ -58,6 +58,8 @@ function run(id = 10) {
     status: "completed",
     conclusion: "success",
     created_at: `2026-10-${String(id).padStart(2, "0")}T00:00:00Z`,
+    run_started_at: `2026-10-${String(id).padStart(2, "0")}T00:00:00Z`,
+    run_attempt: 1,
     repository: { full_name: "specxai/moura" },
     head_repository: { full_name: "specxai/moura" },
   };
@@ -160,7 +162,9 @@ describe("optional Japanese artifact retrieval", () => {
     });
     const result = await selectJapaneseViews(f.root, f.access);
     expect(result.views?.runId).toBe(10);
-    expect(result.messages).toContain("Latest producer attempt 12: failure");
+    expect(result.messages).toContain(
+      "Latest producer attempt 12 (attempt 1): failure",
+    );
     expect(result.messages.join(" ")).toContain("consumer validation failed");
     expect(f.download).toHaveBeenCalledTimes(2);
   });
@@ -172,6 +176,52 @@ describe("optional Japanese artifact retrieval", () => {
       { ...artifact(9), created_at: "2026-10-12T00:00:00Z" },
     ]);
     expect((await selectJapaneseViews(f.root, f.access)).views?.runId).toBe(9);
+  });
+
+  it("reports an older run rerun after a newer run without conflating artifact ordering", async () => {
+    const f = await fixture();
+    f.runs.push({
+      ...run(9),
+      run_attempt: 2,
+      run_started_at: "2026-10-12T00:00:00Z",
+      conclusion: "failure",
+    });
+    const result = await selectJapaneseViews(f.root, f.access);
+    expect(result.messages[0]).toBe(
+      "Latest producer attempt 9 (attempt 2): failure",
+    );
+    expect(result.views?.runId).toBe(10);
+  });
+
+  it.each([false, true])(
+    "reports the highest attempt when pagination repeats the same run (reverse %s)",
+    async (reverse) => {
+      const f = await fixture();
+      f.runs.push({
+        ...run(),
+        run_attempt: 2,
+        run_started_at: "2026-10-12T00:00:00Z",
+        conclusion: "failure",
+      });
+      if (reverse) f.runs.reverse();
+      const result = await selectJapaneseViews(f.root, f.access);
+      expect(result.messages[0]).toBe(
+        "Latest producer attempt 10 (attempt 2): failure",
+      );
+      expect(result.views).toBeUndefined();
+      expect(f.download).not.toHaveBeenCalled();
+    },
+  );
+
+  it("orders attempt starts rather than completion/status update times", async () => {
+    const f = await fixture();
+    // An earlier attempt can finish later; updated_at does not order starts.
+    f.runs.push(Object.assign(run(9), { updated_at: "2026-10-12T00:00:00Z" }));
+    const result = await selectJapaneseViews(f.root, f.access);
+    expect(result.messages[0]).toBe(
+      "Latest producer attempt 10 (attempt 1): success",
+    );
+    expect(result.views?.artifactId).toBe(1000);
   });
 
   it("falls back from source-stale newer success to matching older success", async () => {

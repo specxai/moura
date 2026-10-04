@@ -5,17 +5,35 @@ on:
   pull_request: {}
   push:
     branches: [main]
+  # Completion follows the success-artifact upload, including on reruns.
+  # No dispatch credential or producer write permission is needed.
+  workflow_run:
+    workflows: [Generate Japanese views]
+    types: [completed]
+    branches: [main]
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # Failed producer completions skip every job and must not cancel main CI.
+  group: ${{ github.workflow }}-${{ github.ref }}${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'success' && format('-ignored-{0}', github.run_id) || '' }}
   cancel-in-progress: true
 
 jobs:
   quality:
     name: Quality and release checks
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.repository == 'specxai/moura' &&
+       github.ref == 'refs/heads/main' &&
+       github.event.workflow_run.repository.full_name == 'specxai/moura' &&
+       github.event.workflow_run.head_repository.full_name == 'specxai/moura' &&
+       github.event.workflow_run.path == '.github/workflows/japanese-views.yml' &&
+       github.event.workflow_run.event == 'workflow_dispatch' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.status == 'completed' &&
+       github.event.workflow_run.conclusion == 'success')
     permissions:
       contents: read
       actions: read
@@ -24,6 +42,10 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          # For workflow_run, github.sha is the trusted default-branch commit
+          # at refresh time, never the producer's head_sha or artifact content.
+          ref: ${{ github.event_name == 'workflow_run' && github.sha || '' }}
 
       - name: Enable Corepack
         run: corepack enable
@@ -146,14 +168,14 @@ jobs:
           if-no-files-found: error
 
       - name: Upload GitHub Pages artifact
-        if: github.repository == 'specxai/moura' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        if: github.repository == 'specxai/moura' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_run')
         uses: actions/upload-pages-artifact@v5
         with:
           path: _site/
 
   deploy-pages:
     name: Deploy quality reports
-    if: github.repository == 'specxai/moura' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: github.repository == 'specxai/moura' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_run')
     needs:
       - quality
       - windows-smoke
@@ -174,10 +196,23 @@ jobs:
 
   windows-smoke:
     name: Windows report, package, and onboarding smoke
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.repository == 'specxai/moura' &&
+       github.ref == 'refs/heads/main' &&
+       github.event.workflow_run.repository.full_name == 'specxai/moura' &&
+       github.event.workflow_run.head_repository.full_name == 'specxai/moura' &&
+       github.event.workflow_run.path == '.github/workflows/japanese-views.yml' &&
+       github.event.workflow_run.event == 'workflow_dispatch' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.status == 'completed' &&
+       github.event.workflow_run.conclusion == 'success')
     runs-on: windows-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.sha || '' }}
 
       - name: Enable Corepack
         run: corepack enable

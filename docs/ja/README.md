@@ -47,7 +47,9 @@ success artifact by artifact creation time (including reruns of older runs),
 not the newest generation attempt. Repository, workflow, branch, event, successful
 run status, artifact name, expiration, matching run provenance, and archive
 SHA-256 digest must all pass. Failed-validation debugging artifacts are never
-consumed. A later failed attempt remains visible in the producer workflow and CI
+consumed. Latest-attempt status uses `run_started_at` and `run_attempt`, not the
+original run's creation time; artifact selection remains independently ordered
+by artifact creation. A later failed attempt remains visible in the producer workflow and CI
 retrieval summary; an older eligible success is labelled with its actual provenance.
 
 Freshness requires exact byte equality between the producer commit's `req.md`,
@@ -71,10 +73,11 @@ previous generated output, so missing or rejected views cannot leave stale pages
 
 1. Manually run **Generate Japanese views** on `main` (model override remains
    available) and require successful generation and validation.
-2. Run **CI** manually on `main` to refresh the site, or wait for the next main
-   push. Both the Linux quality and Windows smoke gates must still succeed before
-   the existing Pages deployment. Dispatches on other branches and PRs do not
-   publish Pages.
+2. Successful completion automatically starts **CI** through GitHub's
+   `workflow_run` completion event, after the success artifact upload finishes.
+   No second manual invocation is needed. Both the Linux quality and Windows
+   smoke gates must still succeed before the existing Pages deployment.
+   Dispatches on other branches and PRs do not publish Pages.
 3. Open Japanese Requirements and Specifications from Quality Reports and check
    the displayed source commit/run identity.
 
@@ -89,6 +92,27 @@ Changing canonical prose, including this feature's specification update, require
 a newly generated matching artifact. Success and failed-validation artifacts
 retain the existing 14-day expiration policy; the published static pages persist
 until the next deployment, but an expired artifact cannot be consumed again.
+
+The completion listener must exist on `main` before automatic refresh works.
+CI accepts only a successful completed manual run of this repository's exact
+Japanese workflow on `main`, including reruns, and checks out the trusted default
+branch commit recorded by GitHub for the refresh event (`github.sha`), not the
+producer's commit or artifact code. The event's ref must be `refs/heads/main`.
+Producer permissions remain `contents: read`; no dispatch API, PAT, App credential,
+or `actions: write` is used. CI listens only for the Japanese workflow, which
+remains manual, so the handoff cannot recursively trigger itself.
+
+Generation, validation, or success-upload failure prevents the refresh jobs from
+running. A failed-validation debugging upload never qualifies. Failed producer
+completions use an isolated concurrency group, so their skipped CI runs cannot
+cancel an active or queued main report build. GitHub emits the
+completion event directly; there is no separate fallible API request step in the
+producer. A successful producer run means a validated artifact exists, not that
+Pages publication succeeded: inspect the automatically started CI run and its
+Pages deployment for publication status. CI failures remain visible there.
+If the uploaded artifact is not yet visible to the bounded consumer, the normal
+unavailable state and CI reason apply; no unbounded retry or weaker checks are used.
+Ordinary main pushes and manual CI dispatch remain supported as refresh paths.
 
 Missing, expired, stale, incomplete, untrusted, unavailable, or validation-rejected
 artifacts produce a concise unavailable state without document links. Retrieval

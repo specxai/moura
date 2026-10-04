@@ -229,6 +229,10 @@ with canonical English-source links. Missing or rejected Japanese artifacts
 produce an unavailable state without blocking canonical reports; clean assembly
 removes stale Japanese pages. These presentation artifacts never affect Moura
 parsing, identities, evidence, coverage, or canonical source snapshots.
+Successful main Japanese generation, validation, and success-artifact upload
+automatically refresh the site through trusted main CI, retaining its normal
+checks and Pages deployment gates. Failed producer runs do not request a refresh;
+generation itself never deploys Pages or grants artifact content execution rights.
 
 #### CASE-003 Summarize generated test results for CI
 

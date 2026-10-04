@@ -297,6 +297,8 @@ async function japaneseFixture() {
               status: "completed",
               conclusion: "success",
               created_at: "2026-10-01T00:00:00Z",
+              run_started_at: "2026-10-01T00:00:00Z",
+              run_attempt: 1,
               repository: { full_name: "specxai/moura" },
               head_repository: { full_name: "specxai/moura" },
             },

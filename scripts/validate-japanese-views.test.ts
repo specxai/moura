@@ -77,6 +77,144 @@ version: 1
 `;
 
 describe("Japanese view integrity", () => {
+  // Exact paragraphs from run 37161568836, artifact 11288410042.
+  const observedEnglish = `A Case may declare a layer in \`unimplemented\` instead of \`verify\`. This
+Git-reviewed Case × layer declaration produces \`UNIMPLEMENTED\` without
+Evidence. Omitting both a declaration and required Evidence never implies
+\`UNIMPLEMENTED\`; a \`verify\` pair without Evidence remains \`MISSING\`. A layer
+cannot appear in both lists, and Evidence for an unimplemented pair is a
+contradiction that fails checking.`;
+  const observedJapanese = `Case は、\`verify\` の代わりに \`unimplemented\` でレイヤーを宣言できる。
+Git でレビューされたこの Case × レイヤーの宣言により、
+エビデンスなしで \`UNIMPLEMENTED\` を生成する。宣言と必須のエビデンスの両方を
+省略しても、\`UNIMPLEMENTED\` を意味することはない。エビデンスのない \`verify\` の組は
+\`MISSING\` のままとする。同じレイヤーを両方のリストに含めることはできず、
+未実装の組に対するエビデンスは矛盾としてチェックを失敗させる。`;
+
+  it("accepts the observed same-paragraph Japanese inline-code reversal", () => {
+    expect(
+      validateJapaneseView(
+        observedEnglish,
+        observedJapanese,
+        "specifications",
+        manifest,
+      ),
+    ).toEqual([]);
+  });
+
+  it("accepts observed CASE-008 wrapping and wrapping changes alone", () => {
+    const english = `Validation fails when a local ID is empty; contains \`/\` or a Unicode
+\`White_Space\` character; contains a Unicode control code point whose
+\`General_Category\` is \`Cc\`; or contains an unpaired UTF-16 surrogate code unit.
+Ordinary printable and supplementary Unicode code points remain valid and are
+not normalized.`;
+    const japanese = `ローカル ID が空である場合、\`/\` または Unicode の
+\`White_Space\` 文字を含む場合、\`General_Category\` が \`Cc\` である Unicode 制御コードポイントを含む場合、
+または対になっていない UTF-16 サロゲートコード単位を含む場合、検証は失敗する。
+通常の印字可能な Unicode コードポイントおよび補助コードポイントは引き続き有効とし、
+正規化しない。`;
+    for (const generated of [
+      english.replaceAll("\n", " "),
+      japanese,
+      japanese.replaceAll("\n", " "),
+    ]) {
+      expect(
+        validateJapaneseView(english, generated, "specifications", manifest),
+      ).toEqual([]);
+    }
+  });
+
+  it("rejects mutation, removal, or duplication in the observed paragraph", () => {
+    for (const replacement of ["`changed`", "", "`verify` `verify`"]) {
+      expect(
+        validateJapaneseView(
+          observedEnglish,
+          observedJapanese.replace("`verify`", replacement),
+          "specifications",
+          manifest,
+        ),
+      ).toContain("specifications: protected Markdown code changed");
+    }
+  });
+
+  it("rejects exchanging code values between preserved blocks", () => {
+    for (const [source, generated] of [
+      [
+        "First `verify`.\n\nSecond `unimplemented`.",
+        "最初 `unimplemented`。\n\n次 `verify`。",
+      ],
+      [
+        "- First `verify`\n- Second `unimplemented`",
+        "- 最初 `unimplemented`\n- 次 `verify`",
+      ],
+      [
+        "# First `verify`\n\nSecond `unimplemented`.",
+        "# 最初 `unimplemented`\n\n次 `verify`。",
+      ],
+    ]) {
+      expect(
+        validateJapaneseView(source!, generated!, "requirements", manifest),
+      ).toContain("requirements: protected Markdown code changed");
+    }
+  });
+
+  it("rejects exchanging values between Case, Scenario, or Requirement sections", () => {
+    const sectionManifest = parseManifest(`
+version: 1
+sources: { requirements: [req.md], specifications: [spec.md] }
+verification: { layers: [unit] }
+requirements:
+  - id: REQ-001
+    scenarios:
+      - id: feature+🚀
+        cases: [{ id: CASE-001, verify: [unit] }, { id: CASE-002, verify: [unit] }]
+      - id: SCN-002
+        cases: [{ id: CASE-002, verify: [unit] }]
+  - id: REQ-002
+    scenarios:
+      - id: SCN-002
+        cases: [{ id: CASE-002, verify: [unit] }]
+`).value!;
+    for (const separator of [
+      "#### CASE-002",
+      "### SCN-002\n#### CASE-002",
+      "## REQ-002\n### SCN-002\n#### CASE-002",
+    ]) {
+      const source = `## REQ-001\n### feature+🚀\n#### CASE-001\n\nFirst \`verify\`.\n\n${separator}\n\nSecond \`unimplemented\`.`;
+      expect(
+        validateJapaneseView(source, source, "specifications", sectionManifest),
+      ).toEqual([]);
+      const generated = source
+        .replace("`verify`", "`temporary`")
+        .replace("`unimplemented`", "`verify`")
+        .replace("`temporary`", "`unimplemented`");
+      expect(
+        validateJapaneseView(
+          source,
+          generated,
+          "specifications",
+          sectionManifest,
+        ),
+      ).toContain("specifications: protected Markdown code changed");
+    }
+  });
+
+  it("preserves order inside protected commands and fenced code", () => {
+    for (const source of [
+      "Run `verify unimplemented`.",
+      "```sh\nverify\nunimplemented\n```",
+      "```sh\nverify\n```\n\n```sh\nunimplemented\n```",
+    ]) {
+      const generated = source
+        .replace("verify", "temporary")
+        .replace("unimplemented", "verify")
+        .replace("temporary", "unimplemented");
+      expect(
+        validateJapaneseView(source, generated, "requirements", manifest),
+      ).toContain("requirements: protected Markdown code changed");
+    }
+  });
+
   it("allows human-readable prose to differ", () => {
     expect(
       validateJapaneseView(canonical, translated, "specifications", manifest),

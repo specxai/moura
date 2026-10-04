@@ -334,7 +334,10 @@ describe("optional Japanese artifact retrieval", () => {
     const f = await fixture();
     await mkdir(resolve(f.root, "node_modules"));
     await writeFile(resolve(f.root, "node_modules/.cache"), "not a directory");
-    await expect(fetchJapaneseViews(f.root, f.access)).rejects.toThrow();
+    const result = await fetchJapaneseViews(f.root, f.access);
+    expect(result.views).toBeUndefined();
+    expect(result.messages.join(" ")).toContain("Japanese staging");
+    expect((await readJapaneseViews(f.root)).views).toBeUndefined();
   });
 });
 

@@ -301,7 +301,13 @@ export async function fetchJapaneseViews(
   access: JapaneseArtifactAccess,
 ): Promise<JapaneseViewsResult> {
   const stage = resolve(root, stagingPath);
-  await rm(stage, { recursive: true, force: true });
+  try {
+    await rm(stage, { recursive: true, force: true });
+  } catch (error) {
+    return {
+      messages: [`Japanese staging unavailable: ${errorMessage(error)}`],
+    };
+  }
   const result = await selectJapaneseViews(root, access);
   if (result.views) {
     try {

@@ -6,7 +6,7 @@ on:
       model:
         description: OpenAI model used for this repository-local PoC
         required: true
-        default: gpt-5-mini
+        default: gpt-6.1-sol
         type: string
 
 permissions:

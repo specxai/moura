@@ -134,9 +134,16 @@ function protectedMarkdown(markdown: string): ProtectedMarkdown {
       placements.push(JSON.stringify([node.type, blockPath]));
     if (node.type === "code")
       code.push(
-        JSON.stringify([node.lang ?? null, node.meta ?? null, node.value]),
+        JSON.stringify([
+          blockPath,
+          node.type,
+          node.lang ?? null,
+          node.meta ?? null,
+          node.value,
+        ]),
       );
-    if (node.type === "inlineCode") code.push(JSON.stringify([node.value]));
+    if (node.type === "inlineCode")
+      code.push(JSON.stringify([blockPath, node.type, node.value]));
     if (node.type === "html") html.push(String(node.value));
     if (node.type === "link" || node.type === "image")
       links.push(JSON.stringify([node.type, node.url, node.title ?? null]));
@@ -155,7 +162,11 @@ function protectedMarkdown(markdown: string): ProtectedMarkdown {
       );
   });
 
-  return { code, html, links, references, placements };
+  // Japanese prose can reverse "A instead of B" to "B の代わりに A".
+  // Compare code values as a multiset tied to each containing block, not
+  // English word order. Duplicates remain significant; code contents (including
+  // command order) and fenced-code metadata remain exact.
+  return { code: code.sort(), html, links, references, placements };
 }
 
 function withoutGeneratedNotice(markdown: string): string {

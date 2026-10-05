@@ -64,8 +64,9 @@ no rendering or translation dependency is added.
 
 Eligible data is staged in ignored `node_modules/.cache/moura-japanese-views/`,
 with producer identity and SHA-256 digests of all three canonical inputs.
-Assembly rechecks these digests and reruns validation before writing
-`_site/ja/req.html` and `_site/ja/spec.html`. Raw `docs/ja/` files alone never
+Assembly rechecks these digests and reruns validation before embedding Japanese
+content in the canonical REQ and Spec pages under `_site/moura/sources/`.
+Raw `docs/ja/` files alone never
 qualify for publication. Both stage retrieval and site assembly clear their
 previous generated output, so missing or rejected views cannot leave stale pages.
 
@@ -78,13 +79,14 @@ previous generated output, so missing or rejected views cannot leave stale pages
    No second manual invocation is needed. Both the Linux quality and Windows
    smoke gates must still succeed before the existing Pages deployment.
    Dispatches on other branches and PRs do not publish Pages.
-3. Open Japanese Requirements and Specifications from Quality Reports and check
-   the displayed source commit/run identity.
+3. Open Requirement Coverage from Quality Reports, select **日本語**, and follow
+   REQ and Spec links. The selected language carries through navigation; sources
+   without a translation fall back to English.
 
 PR CI retains the assembled site as a `quality-site` workflow artifact for
 review without replacing public Pages. Tests exercise both eligible and
 unavailable Japanese states; a PR whose canonical inputs changed correctly
-shows unavailable until a matching trusted main artifact exists.
+falls back to English until a matching trusted main artifact exists.
 
 Generation alone does not deploy Pages. A main code-only change can reuse an
 older artifact if all three canonical input files remain byte-equivalent.

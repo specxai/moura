@@ -71,8 +71,8 @@ describe("quality site assembly", () => {
         'href="https://github.com/specxai/moura">specxai/moura</a>',
       );
       expect(landing).toContain("Commit: <code>0123456</code>");
-      expect(landing).toContain("Japanese Documentation");
-      expect(landing).toContain("Currently unavailable");
+      expect(landing).not.toContain("Japanese Documentation");
+      expect(landing).not.toContain("Currently unavailable");
       expect(landing).not.toContain('href="./ja/');
       for (const report of ["moura", "allure", "coverage"])
         await expect(
@@ -83,62 +83,8 @@ describe("quality site assembly", () => {
     }
   });
 
-  it("publishes safely escaped Japanese pages with notice, navigation, English links, and actual provenance", async () => {
-    const f = await japaneseFixture();
-    try {
-      expect((await fetchJapaneseViews(f.root, f.access)).views).toBeDefined();
-      await buildQualitySite(f.root);
-      const landing = await readFile(join(f.root, "_site/index.html"), "utf8");
-      expect(landing).toContain('href="./ja/req.html"');
-      expect(landing).toContain('href="./ja/spec.html"');
-      expect(landing.indexOf("Requirement Coverage")).toBeLessThan(
-        landing.indexOf("Japanese Documentation"),
-      );
-      expect(landing.indexOf("Japanese Documentation")).toBeLessThan(
-        landing.indexOf("Allure Report"),
-      );
-      for (const source of ["req", "spec"]) {
-        const page = await readFile(
-          join(f.root, `_site/ja/${source}.html`),
-          "utf8",
-        );
-        expect(page).toContain('<html lang="ja">');
-        expect(page).toContain('href="../index.html"');
-        expect(page).toContain(
-          `href="https://github.com/specxai/moura/blob/${f.sourceSha}/${source}.md"`,
-        );
-        expect(page).toContain("Generated file — do not edit.");
-        expect(page).toContain("English document is authoritative.");
-        expect(page).toContain("生成ファイル — 編集しないでください。");
-        expect(page).toContain("英語文書が正本です。");
-        expect(page).toContain(
-          'href="https://github.com/specxai/moura/actions/runs/10"',
-        );
-        expect(page).toContain("Artifact: 1000");
-        expect(page).toContain(f.sourceSha);
-        expect(page).toContain(
-          "&lt;script&gt;alert(&quot;unsafe&quot;)&lt;/script&gt;",
-        );
-        expect(page).not.toContain('<script>alert("unsafe")</script>');
-      }
-      for (const [input, destination] of [
-        ["moura-report", "moura"],
-        ["allure-report", "allure"],
-        ["coverage", "coverage"],
-      ])
-        expect(
-          await readFile(
-            join(f.root, `_site/${destination}/index.html`),
-            "utf8",
-          ),
-        ).toBe(await readFile(join(f.root, `${input}/index.html`), "utf8"));
-    } finally {
-      await rm(f.root, { recursive: true, force: true });
-    }
-  });
-
   it.each(["missing", "invalid", "stale", "partial", "notice"])(
-    "removes previous Japanese pages and preserves canonical publication when %s",
+    "preserves canonical publication when Japanese views are %s",
     async (failure) => {
       const f = await japaneseFixture();
       try {
@@ -167,7 +113,7 @@ describe("quality site assembly", () => {
           join(f.root, "_site/index.html"),
           "utf8",
         );
-        expect(landing).toContain("Currently unavailable");
+        expect(landing).not.toContain("Currently unavailable");
         expect(landing).not.toContain('href="./ja/');
         await expect(readdir(join(f.root, "_site/ja"))).rejects.toThrow();
         for (const destination of ["moura", "allure", "coverage"])
@@ -205,6 +151,12 @@ describe("quality site assembly", () => {
         join(f.root, "_site/moura/index.html"),
         "utf8",
       );
+      const landing = await readFile(join(f.root, "_site/index.html"), "utf8");
+      expect(landing).not.toContain("Japanese Documentation");
+      expect(landing).not.toContain("Requirements →");
+      expect(landing).not.toContain("Specifications →");
+      expect(landing).not.toContain('href="./ja/');
+      await expect(readdir(join(f.root, "_site/ja"))).rejects.toThrow();
       expect(report).toContain('data-language="ja"');
       expect(report).toContain('data-ja="Moura 要求カバレッジ"');
       expect(report).toContain(

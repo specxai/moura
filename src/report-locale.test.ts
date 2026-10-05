@@ -1,7 +1,17 @@
 import { runInNewContext } from "node:vm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it as vitestIt } from "vitest";
+
+import { mouraEvidenceTest } from "./test-support/moura-evidence.js";
 
 import { reportLocaleScript } from "./report-locale.js";
+
+// Match report.test.ts: these checks exercise generated report navigation and
+// canonical source presentation, including every parameterized invocation.
+const it = mouraEvidenceTest(
+  vitestIt,
+  ["REQ-003/SCN-002/CASE-003"],
+  "integration",
+);
 
 // Exercise the shipped inline script's DOM boundary, without a browser dependency.
 function openPage(

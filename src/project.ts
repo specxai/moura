@@ -31,6 +31,7 @@ export interface LoadedProjectResult extends ValidationResult {
   >;
   /** Validated source contents used to build provider-neutral report pages. */
   readonly requirementSources?: ReadonlyMap<string, string>;
+  readonly specificationSources?: ReadonlyMap<string, string>;
 }
 
 /** Reusable, deterministic validation entry point for in-memory project files. */
@@ -197,6 +198,7 @@ export async function loadProjectDirectory(
     manifest: parsed.value,
     requirementLocations,
     requirementSources,
+    specificationSources,
     errors,
   };
 }

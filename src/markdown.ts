@@ -1,3 +1,4 @@
+import { canonicalId } from "./id.js";
 import type { MouraManifest } from "./manifest.js";
 import type { Heading as MdastHeading, Root } from "mdast";
 import remarkParse from "remark-parse";
@@ -157,6 +158,55 @@ export function parseSpecificationMarkdown(
     }
   }
   return { value: { requirements: result }, errors };
+}
+
+/** Presentation locations use the same scoped IDs as the canonical manifest. */
+export function locateSpecificationMarkdown(
+  text: string,
+  source: string,
+  manifest: MouraManifest,
+): ReadonlyMap<string, RequirementSourceLocation> {
+  const locations = new Map<string, RequirementSourceLocation>();
+  let requirement: MouraManifest["requirements"][number] | undefined;
+  let scenario:
+    NonNullable<typeof requirement>["scenarios"][number] | undefined;
+  let requirementDepth = 0;
+  let scenarioDepth = 0;
+  for (const heading of headings(text)) {
+    if (heading.depth <= scenarioDepth) scenario = undefined;
+    if (heading.depth <= requirementDepth) requirement = undefined;
+    const testCase = scenario?.cases.find(
+      (item) => item.localId === heading.token,
+    );
+    const nextScenario = requirement?.scenarios.find(
+      (item) => item.localId === heading.token,
+    );
+    let id: string | undefined;
+    if (testCase && requirement && scenario) {
+      id = canonicalId([requirement, scenario, testCase]);
+    } else if (nextScenario && requirement) {
+      scenario = nextScenario;
+      scenarioDepth = heading.depth;
+      id = canonicalId([requirement, scenario]);
+    } else {
+      const nextRequirement = manifest.requirements.find(
+        (item) => item.localId === heading.token,
+      );
+      if (nextRequirement) {
+        requirement = nextRequirement;
+        requirementDepth = heading.depth;
+        scenario = undefined;
+        id = requirement.localId;
+      }
+    }
+    if (id)
+      locations.set(id, {
+        source,
+        line: heading.line,
+        anchor: requirementAnchor(id),
+      });
+  }
+  return locations;
 }
 
 function headings(text: string): Heading[] {

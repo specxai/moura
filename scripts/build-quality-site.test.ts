@@ -19,12 +19,18 @@ import {
   requirementSourceFilename,
   reportProjectDirectory,
 } from "../src/report.js";
-import { buildQualitySite } from "./build-quality-site.js";
+import { buildQualitySite, renderOverview } from "./build-quality-site.js";
 import {
   fetchJapaneseViews,
   type JapaneseArtifactAccess,
 } from "./fetch-japanese-views.js";
 import { GENERATED_VIEW_NOTICE } from "./generate-japanese-views.js";
+import {
+  collectQualityOverview,
+  countMissingEvidence,
+  overallStatus,
+} from "./quality-overview.js";
+import type { VerificationProjectCheckResult } from "../src/check.js";
 
 const it = mouraEvidenceTest(
   vitestIt,
@@ -59,9 +65,12 @@ describe("quality site assembly", () => {
         "utf8",
       );
       expect(landing.indexOf("Requirement Coverage")).toBeLessThan(
-        landing.indexOf("Allure Report"),
+        landing.indexOf("Missing Evidence"),
       );
-      expect(landing.indexOf("Allure Report")).toBeLessThan(
+      expect(landing.indexOf("Missing Evidence")).toBeLessThan(
+        landing.indexOf("Test Results"),
+      );
+      expect(landing.indexOf("Test Results")).toBeLessThan(
         landing.indexOf("Code Coverage"),
       );
       expect(landing).toContain('href="./moura/"');
@@ -287,6 +296,161 @@ describe("quality site assembly", () => {
     }
   });
 });
+
+describe("quality Overview v1", () => {
+  const check = (
+    ...statuses: Array<
+      VerificationProjectCheckResult["entries"][number]["status"]
+    >
+  ): VerificationProjectCheckResult => ({
+    passed: statuses.every(
+      (status) => status !== "FAIL" && status !== "BROKEN",
+    ),
+    evidenceIssues: [],
+    entries: statuses.map((status, index) => ({
+      caseId: `REQ-001/SCN-001/CASE-00${index + 1}`,
+      layer: "unit",
+      status,
+      severity:
+        status === "PASS"
+          ? "success"
+          : status === "SKIPPED" || status === "UNIMPLEMENTED"
+            ? "warning"
+            : "error",
+    })),
+  });
+
+  it.each([
+    [["PASS"] as const, false, "PASS"],
+    [["PASS"] as const, true, "INCOMPLETE"],
+    [["MISSING"] as const, false, "INCOMPLETE"],
+    [["SKIPPED"] as const, false, "INCOMPLETE"],
+    [["UNIMPLEMENTED"] as const, false, "INCOMPLETE"],
+    [["FAIL"] as const, false, "FAIL"],
+    [["BROKEN"] as const, false, "FAIL"],
+  ])(
+    "derives %s with evaluation problems=%s as %s",
+    (statuses, problems, expected) => {
+      expect(overallStatus(check(...statuses), problems)).toBe(expected);
+    },
+  );
+
+  it("counts required pairs without runtime Evidence", () => {
+    expect(
+      countMissingEvidence(
+        check("PASS", "MISSING", "UNIMPLEMENTED", "SKIPPED"),
+      ),
+    ).toBe(2);
+  });
+
+  it("collects authoritative Moura, Allure, and code coverage summaries", async () => {
+    const root = await overviewFixture();
+    try {
+      const overview = await collectQualityOverview(root);
+      expect(overview).toEqual({
+        status: "INCOMPLETE",
+        requirementCoverage: { covered: 0, total: 1 },
+        missingEvidence: 1,
+        testResults: {
+          tests: 3,
+          passed: 1,
+          failed: 1,
+          broken: 0,
+          skipped: 1,
+        },
+        codeCoverageLines: 94,
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("renders localized labels and stable detail links in one Overview", () => {
+    const html = renderOverview(
+      {
+        status: "PASS",
+        requirementCoverage: { covered: 8, total: 8 },
+        missingEvidence: 0,
+        testResults: {
+          tests: 122,
+          passed: 120,
+          failed: 0,
+          broken: 0,
+          skipped: 2,
+        },
+        codeCoverageLines: 94,
+      },
+      "abcdef0",
+    );
+    expect(html).toContain('data-status="PASS"');
+    expect(html).toContain("8 / 8");
+    expect(html).toContain("100%");
+    expect(html).toContain('data-ja="総合ステータス"');
+    expect(html).toContain('data-language="ja"');
+    expect(html.match(/href="\.\/moura\/"/gu)).toHaveLength(3);
+    expect(html.match(/href="\.\/allure\/"/gu)).toHaveLength(2);
+    expect(html.match(/href="\.\/coverage\/"/gu)).toHaveLength(2);
+    expect(html).not.toContain("Japanese Overview");
+  });
+
+  it("renders unavailable metrics instead of failing when summary data is absent", async () => {
+    const root = await mkdtemp(join(tmpdir(), "moura-overview-empty-"));
+    try {
+      const overview = await collectQualityOverview(root);
+      expect(overview).toEqual({ status: "INCOMPLETE" });
+      expect(renderOverview(overview, "local")).toContain("Unavailable");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+async function overviewFixture(): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), "moura-overview-"));
+  await writeFile(join(root, "req.md"), "## REQ-001 Overview\n");
+  await writeFile(
+    join(root, "spec.md"),
+    "## REQ-001\n### SCN-001\n#### CASE-001 Covered\n#### CASE-002 Missing\n",
+  );
+  await writeFile(
+    join(root, "moura.yaml"),
+    "version: 1\nsources: { requirements: [req.md], specifications: [spec.md] }\nverification: { layers: [unit] }\nrequirements:\n  - id: REQ-001\n    scenarios:\n      - id: SCN-001\n        cases:\n          - { id: CASE-001, verify: [unit] }\n          - { id: CASE-002, verify: [unit] }\n",
+  );
+  await mkdir(join(root, "allure-results"));
+  for (const [name, status, traced] of [
+    ["passing", "passed", true],
+    ["failing", "failed", false],
+    ["skipped", "skipped", false],
+  ] as const)
+    await writeFile(
+      join(root, "allure-results", `${name}-result.json`),
+      JSON.stringify({
+        name,
+        status,
+        labels: traced
+          ? [
+              { name: "moura_requirement", value: "REQ-001" },
+              { name: "moura_scenario", value: "SCN-001" },
+              { name: "moura_case", value: "CASE-001" },
+              { name: "moura_layer", value: "unit" },
+            ]
+          : [],
+      }),
+    );
+  await mkdir(join(root, "coverage"));
+  await writeFile(
+    join(root, "coverage/coverage-summary.json"),
+    JSON.stringify({
+      total: Object.fromEntries(
+        ["statements", "branches", "functions", "lines"].map((name) => [
+          name,
+          { pct: name === "lines" ? 94 : 90 },
+        ]),
+      ),
+    }),
+  );
+  return root;
+}
 
 async function japaneseFixture() {
   const root = await mkdtemp(join(tmpdir(), "moura-quality-ja-"));

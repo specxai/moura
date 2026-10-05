@@ -218,6 +218,15 @@ Latest successful `main` branch reports:
 
 Requirement Coverage rolls up authoritative pair results: only `PASS` is covered; every required layer must pass for a Case, every Case for a Scenario, and every Scenario for a Requirement. `FAIL`, `BROKEN`, `SKIPPED`, `UNIMPLEMENTED`, and `MISSING` remain visible gaps; warnings and errors are visually distinct. **Moura verifies declared traceability and its evidence; it does not prove that a test semantically verifies the specification it declares.**
 
+Use **日本語 | English** at the top of Requirement Coverage to select the display
+language. The `lang=ja` or `lang=en` query parameter follows REQ and Spec links,
+including links back to the report. Detail pages keep the same canonical IDs and
+anchors in both languages; English remains the canonical source. The Quality site
+adds Japanese translations only from the existing validated artifact. Missing,
+invalid, or stale translations leave the English source readable, while retaining
+the selected language for subsequent navigation. Standalone CLI reports also
+support Japanese report labels and bundle the English REQ and Spec sources.
+
 These static reports are produced by CI; pull requests retain their reports as
 workflow artifacts without replacing the public site.
 

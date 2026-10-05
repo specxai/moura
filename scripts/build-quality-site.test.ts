@@ -15,7 +15,10 @@ import { describe, expect, it as vitestIt } from "vitest";
 import { mouraEvidenceTest } from "../src/test-support/moura-evidence.js";
 import { evaluateProjectDirectory } from "../src/check-command.js";
 import { summarizeCoverage } from "../src/coverage.js";
-import { reportProjectDirectory } from "../src/report.js";
+import {
+  requirementSourceFilename,
+  reportProjectDirectory,
+} from "../src/report.js";
 import { buildQualitySite } from "./build-quality-site.js";
 import {
   fetchJapaneseViews,
@@ -179,6 +182,84 @@ describe("quality site assembly", () => {
       }
     },
   );
+
+  it("enriches REQ and Spec pages with validated translations while keeping mixed English sources readable", async () => {
+    const f = await japaneseFixture();
+    try {
+      f.inputs["moura.yaml"] =
+        f.inputs["moura.yaml"]
+          .replace("[req.md]", "[req.md, extra.md]")
+          .replace("[spec.md]", "[spec.md, extra-spec.md]") +
+        "  - id: REQ-002\n    scenarios:\n      - id: SCN-001\n        cases: [{ id: CASE-001, verify: [unit] }]\n";
+      await writeFile(join(f.root, "moura.yaml"), f.inputs["moura.yaml"]);
+      await writeFile(join(f.root, "extra.md"), "## REQ-002 English only\n");
+      await writeFile(
+        join(f.root, "extra-spec.md"),
+        "## REQ-002\n### SCN-001\n#### CASE-001 English only\n",
+      );
+      await mkdir(join(f.root, "allure-results"));
+      expect((await reportProjectDirectory(f.root)).exitCode).toBe(0);
+      expect((await fetchJapaneseViews(f.root, f.access)).views).toBeDefined();
+      await buildQualitySite(f.root);
+      const report = await readFile(
+        join(f.root, "_site/moura/index.html"),
+        "utf8",
+      );
+      expect(report).toContain('data-language="ja"');
+      expect(report).toContain('data-ja="Moura 要求カバレッジ"');
+      expect(report).toContain(
+        `./sources/${requirementSourceFilename("spec.md")}#requirement-52-45-51-2d-30-30-31-2f-53-43-4e-2d-30-30-31`,
+      );
+      for (const source of ["req.md", "spec.md"]) {
+        const page = await readFile(
+          join(
+            f.root,
+            "_site/moura/sources",
+            requirementSourceFilename(source),
+          ),
+          "utf8",
+        );
+        expect(page).toContain("<template data-translation>");
+        expect(page).toContain("読む");
+        expect(page).toContain('id="requirement-52-45-51-2d-30-30-31"');
+        expect(page).toContain(
+          `rel="canonical" href="./${requirementSourceFilename(source)}"`,
+        );
+        expect(page).not.toContain('<script>alert("unsafe")</script>');
+      }
+      for (const source of ["extra.md", "extra-spec.md"]) {
+        const page = await readFile(
+          join(
+            f.root,
+            "_site/moura/sources",
+            requirementSourceFilename(source),
+          ),
+          "utf8",
+        );
+        expect(page).not.toContain("<template data-translation>");
+        expect(page).toContain("English only");
+        expect(page).toContain("data-fallback");
+      }
+      // Invalid staging must also remove a previously published translation.
+      await writeFile(
+        join(f.root, "node_modules/.cache/moura-japanese-views/spec.md"),
+        "invalid",
+      );
+      await buildQualitySite(f.root);
+      const fallback = await readFile(
+        join(
+          f.root,
+          "_site/moura/sources",
+          requirementSourceFilename("req.md"),
+        ),
+        "utf8",
+      );
+      expect(fallback).not.toContain("<template data-translation>");
+      expect(fallback).toContain("## REQ-001 Read");
+    } finally {
+      await rm(f.root, { recursive: true, force: true });
+    }
+  });
 
   it("keeps canonical parsing, IDs, evidence, coverage, locations, and source snapshots identical across Japanese states", async () => {
     const f = await japaneseFixture();

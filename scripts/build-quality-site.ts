@@ -1,5 +1,6 @@
 import {
   cpSync,
+  existsSync,
   mkdirSync,
   readFileSync,
   rmSync,
@@ -8,6 +9,16 @@ import {
 import process from "node:process";
 import { resolve } from "node:path";
 import { appendFile } from "node:fs/promises";
+
+import { parseManifest } from "../src/manifest.js";
+import {
+  locateRequirementMarkdown,
+  locateSpecificationMarkdown,
+} from "../src/markdown.js";
+import {
+  renderRequirementSource,
+  requirementSourceFilename,
+} from "../src/report.js";
 
 import { isDirectExecution } from "./direct-execution.js";
 import {
@@ -32,6 +43,32 @@ export async function buildQualitySite(root = "."): Promise<void> {
   cpSync(path("moura-report"), path("_site/moura"), { recursive: true });
   const japanese = await readJapaneseViews(root);
   if (japanese.views) {
+    const manifest = parseManifest(
+      readFileSync(path("moura.yaml"), "utf8"),
+    ).value!;
+    for (const [source, role, locate] of [
+      ["req.md", "requirements", locateRequirementMarkdown],
+      ["spec.md", "specifications", locateSpecificationMarkdown],
+    ] as const) {
+      const destination = path(
+        `_site/moura/sources/${requirementSourceFilename(source)}`,
+      );
+      // Only enrich bundled canonical sources, never create a translation-only ID.
+      if (!existsSync(destination)) continue;
+      const canonical = readFileSync(path(source), "utf8");
+      writeFileSync(
+        destination,
+        renderRequirementSource(
+          source,
+          canonical,
+          locate(canonical, source, manifest),
+          {
+            markdown: japanese.views[role],
+            locations: locate(japanese.views[role], source, manifest),
+          },
+        ),
+      );
+    }
     mkdirSync(path("_site/ja"));
     for (const [source, role, title] of [
       ["req", "requirements", "Requirements"],
@@ -86,6 +123,7 @@ function renderJapanesePage(
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title} — Generated Japanese view</title>
 <style>body{font:16px system-ui,sans-serif;line-height:1.5;max-width:72rem;margin:auto;padding:2rem;color:#172033}a{color:#167044}pre{font:16px system-ui,sans-serif;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}</style></head>
 <body><main><p><a href="../index.html">← Quality Reports</a></p><h1>${title} — 日本語生成ビュー</h1>
+<nav aria-label="Language"><a href="./${source}.html" lang="ja" aria-current="true">日本語</a> | <a href="../moura/sources/${requirementSourceFilename(`${source}.md`)}?lang=en" lang="en">English</a></nav>
 <p><a href="https://github.com/specxai/moura/blob/${views.sourceSha}/${source}.md">Canonical English source / 正本の英語文書</a></p>
 <p>Last validated generation: <a href="https://github.com/specxai/moura/actions/runs/${views.runId}">run ${views.runId}</a> · Artifact: ${views.artifactId} · Source commit: <code>${views.sourceSha}</code></p>
 <pre>${escapeHtml(markdown)}</pre></main></body></html>\n`;

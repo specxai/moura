@@ -1,6 +1,34 @@
 /** The query carries display language through portable report URLs and history. */
 const japanese: Readonly<Record<string, string>> = {
   "Moura Requirement Coverage": "Moura 要求カバレッジ",
+  "Moura Quality Reports": "Moura 品質レポート",
+  "Verification completeness against project requirements.":
+    "プロジェクトの要求に対する検証の完了状況です。",
+  "Overall Status": "総合ステータス",
+  "Required verification and its Evidence determine this status.":
+    "必要な検証とそのエビデンスに基づくステータスです。",
+  "Requirement Coverage": "要求カバレッジ",
+  "Missing Evidence": "不足エビデンス",
+  "View verification gaps →": "検証の不足を確認 →",
+  "Test Results": "テスト結果",
+  Passed: "成功",
+  Failed: "失敗",
+  Skipped: "スキップ",
+  "Code Coverage": "コードカバレッジ",
+  Lines: "行",
+  "Detailed Reports": "詳細レポート",
+  "Declared traceability and verification status":
+    "宣言されたトレーサビリティと検証状況",
+  "Allure Report": "Allure レポート",
+  "Test execution details": "テスト実行の詳細",
+  "Source code coverage": "ソースコードのカバレッジ",
+  Unavailable: "利用不可",
+  "Open →": "開く →",
+  PASS: "合格",
+  INCOMPLETE: "未完了",
+  FAIL: "失敗",
+  "Source:": "ソース:",
+  "Commit:": "コミット:",
   "Coverage of declared traceability and evidence. Moura does not prove that a test semantically verifies the specification it declares.":
     "宣言されたトレーサビリティとエビデンスのカバレッジ。Moura は、テストが宣言した仕様を意味的に検証していることを証明しません。",
   Requirements: "要求",
@@ -65,7 +93,7 @@ export const reportLocaleScript = `(() => {
 
 export function withReportLocale(html: string): string {
   const localized = html.replace(
-    /<(h[1-4]|p|strong|th|a|title)([^>]*)>([^<]+)<\/(h[1-4]|p|strong|th|a|title)>/gu,
+    /<(h[1-4]|p|strong|span|th|a|title)([^>]*)>([^<]+)<\/(h[1-4]|p|strong|span|th|a|title)>/gu,
     (
       match: string,
       tag: string,

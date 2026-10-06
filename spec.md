@@ -217,8 +217,13 @@ traceability metadata.
 
 #### CASE-002 Assemble the published quality site
 
-The quality site publishes Requirement Coverage, Allure, and code-coverage
-reports with stable destinations, repository identity, and commit identity.
+The quality site publishes an English/Japanese Overview of requirement
+verification completeness, missing Evidence, Allure test results, and line
+coverage. Overall status is FAIL for failed or broken required Evidence,
+INCOMPLETE for any other required pair that is not PASS or strict traceability
+problem, and PASS only when every required pair passes without evaluation
+problems. Requirement Coverage, Allure, and code-coverage reports retain stable
+destinations, repository identity, and commit identity.
 Repository quality-site assembly also exposes a complete pair of derived,
 read-only Japanese documentation views only from a trusted successful main
 Japanese generation artifact whose canonical `req.md`, `spec.md`, and

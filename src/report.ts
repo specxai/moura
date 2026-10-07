@@ -18,6 +18,8 @@ import {
 } from "./check-command.js";
 import {
   summarizeCoverage,
+  aggregateCoverageHierarchy,
+  type CoverageNodeStatus,
   coverageStatuses,
   type CoverageCount,
 } from "./coverage.js";
@@ -28,7 +30,7 @@ import {
   type RequirementSourceLocation,
 } from "./markdown.js";
 import { withReportLocale } from "./report-locale.js";
-import type { VerificationLayer } from "./model.js";
+import type { Evidence, VerificationLayer } from "./model.js";
 
 export interface ReportCommandOutput {
   readonly exitCode: 0 | 1;
@@ -62,6 +64,7 @@ export async function reportProjectDirectory(
         evaluation.traceabilityDiagnostics,
         evaluation.requirementLocations,
         specificationLocations,
+        evaluation.evidence,
       ),
       new Map([
         ...evaluation.requirementSources,
@@ -145,8 +148,10 @@ export function renderCoverageReport(
     string,
     RequirementSourceLocation
   > = new Map(),
+  evidence: readonly Evidence[] = [],
 ): string {
   const summary = summarizeCoverage(manifest, check);
+  const nodeStatuses = aggregateCoverageHierarchy(manifest, check);
   const entries = new Map<
     CanonicalId,
     Map<VerificationLayer, VerificationCheckResult>
@@ -192,23 +197,29 @@ export function renderCoverageReport(
                       `Check result omitted required pair ${caseId} × ${layer}`,
                     );
                   const { status, severity } = entry;
-                  return `<li><code>${renderText(layer)}</code> <span class="status ${status.toLowerCase()}" data-severity="${severity}">${status}</span> <span class="severity ${severity}">${severity}</span></li>`;
+                  return `<li><code>${renderText(layer)}</code> ${pairBadge(status, severity)}</li>`;
                 })
                 .join("");
-              return `<section class="case"><h4>${sourceLink(caseId, specificationLocations)}</h4><ul>${statuses}</ul></section>`;
+              const node = nodeStatuses.get(caseId)!;
+              const matchingEvidence = evidence.filter((item) =>
+                item.covers.includes(caseId),
+              );
+              const evidenceHtml =
+                matchingEvidence.length === 0
+                  ? "<p>No Evidence available</p>"
+                  : `<ul>${matchingEvidence.map((item) => `<li><code>${renderText(item.layer)}</code> <span>${renderText(item.status)}</span> <code>${renderText(item.source ?? "")}</code></li>`).join("")}</ul>`;
+              return `<details class="case map-node" data-severity="${node.severity}"><summary><h4>${sourceLink(caseId, specificationLocations)}</h4>${nodeBadge(node)}<span class="required-layers"><span>Required verification layers</span>: ${[...testCase.verify, ...(testCase.unimplemented ?? [])].map(renderText).join(", ")}</span></summary><div class="case-details"><h4>Pair statuses</h4><ul>${statuses}</ul><h4>Evidence</h4>${evidenceHtml}</div></details>`;
             })
             .join("");
-          return `<section><h3>${sourceLink(canonicalId([requirement, scenario]), specificationLocations)}</h3>${cases}</section>`;
+          const scenarioId = canonicalId([requirement, scenario]);
+          const node = nodeStatuses.get(scenarioId)!;
+          return `<section class="scenario map-node" data-severity="${node.severity}"><header><h3>${sourceLink(scenarioId, specificationLocations)}</h3>${nodeBadge(node)}</header><div class="cases">${cases}</div></section>`;
         })
         .join("");
       const requirementId = canonicalId([requirement]);
-      const location = requirementLocations.get(requirementId);
-      const label = renderText(requirementId);
-      const heading = location
-        ? `<a href="${escapeHtml(requirementSourceHref(location))}">${label}</a>`
-        : label;
+      const node = nodeStatuses.get(requirementId)!;
       const specification = specificationLocations.get(requirementId);
-      return `<article><h2>${heading}</h2>${specification ? `<p><a href="${escapeHtml(requirementSourceHref(specification))}">Specification</a></p>` : ""}${scenarios}</article>`;
+      return `<details class="requirement map-node" data-severity="${node.severity}"${node.status === "PASS" ? "" : " open"}><summary><h2>${sourceLink(requirementId, requirementLocations)}</h2>${nodeBadge(node)}</summary><div class="requirement-content">${specification ? `<p><a href="${escapeHtml(requirementSourceHref(specification))}">Specification</a></p>` : ""}<div class="scenario-grid">${scenarios}</div></div></details>`;
     })
     .join("");
   const issues = [
@@ -229,10 +240,11 @@ export function renderCoverageReport(
       : `<ul>${issues.map((issue) => `<li>${renderText(issue)}</li>`).join("")}</ul>`;
   return withReportLocale(`<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="format-detection" content="telephone=no"><title>Moura Requirement Coverage</title>
-<style>body{font:16px system-ui,sans-serif;line-height:1.5;max-width:72rem;margin:auto;padding:2rem;color:#172033}h1,h2,h3,h4{line-height:1.2}.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:1rem}.metric,.case{border:1px solid #ccd3df;border-radius:.5rem;padding:1rem}.metric span{display:block;font-size:1.4rem}.status{font-weight:700}.pass,.success{color:#167044}.fail,.broken,.missing,.error{color:#b42318}.skipped,.unimplemented,.warning{color:#854d0e}.severity{font-size:.8em;text-transform:uppercase}table{border-collapse:collapse}th,td{border:1px solid #ccd3df;padding:.5rem;text-align:left}code{font-size:.9em}</style></head>
+<style>body{font:16px system-ui,sans-serif;line-height:1.5;max-width:72rem;margin:auto;padding:2rem;color:#172033}h1,h2,h3,h4{line-height:1.2}.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:1rem}.metric,.case{border:1px solid #ccd3df;border-radius:.5rem;padding:1rem}.metric span{display:block;font-size:1.4rem}.status{font-weight:700}.pass,.success{color:#167044}.fail,.broken,.missing,.error{color:#b42318}.skipped,.unimplemented,.warning{color:#854d0e}.severity{font-size:.8em;text-transform:uppercase}table{border-collapse:collapse}th,td{border:1px solid #ccd3df;padding:.5rem;text-align:left}code{font-size:.9em}*{box-sizing:border-box}.requirement-map{display:grid;gap:1rem}.map-node{border:1px solid #ccd3df;border-radius:.65rem;min-width:0;overflow-wrap:anywhere;color:#172033}.map-node[data-severity=success]{background:#f3faf5;border-color:#94c9a8}.map-node[data-severity=warning]{background:#fffbef;border-color:#dec17c}.map-node[data-severity=error]{background:#fff6f5;border-color:#dfa6a0}.map-node[data-severity=neutral]{background:#f6f7f9}.requirement>summary,.case>summary{padding:1rem;cursor:pointer;min-height:44px}.requirement>summary h2,.case>summary h4{display:inline-block;vertical-align:middle;margin:0 .75rem .5rem 0;max-width:100%}.requirement-content{padding:0 1rem 1rem}.scenario-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr));gap:1rem;align-items:start}.scenario{padding:1rem}.scenario header h3{margin:0 0 .5rem}.cases{display:grid;gap:.75rem;margin-top:1rem}.case{padding:0}.case-details{padding:0 1rem 1rem}.node-title{display:block;font-size:1em;font-weight:750}.node-id{display:block;font:normal .75rem ui-monospace,monospace;margin-top:.4rem;color:#4b5565}.node-link{color:inherit;text-decoration:none}.node-link:hover .node-title{text-decoration:underline}.node-link:focus-visible,summary:focus-visible{outline:3px solid #2563eb;outline-offset:3px}.badge{display:inline-flex;align-items:center;gap:.3rem;border:1px solid currentColor;border-radius:1rem;padding:.15rem .6rem;font-size:.8rem;white-space:nowrap}.badge[data-severity=success]{color:#16643d;background:#e4f3e9}.badge[data-severity=warning]{color:#754407;background:#fff0c5}.badge[data-severity=error]{color:#a12118;background:#fce5e2}.required-layers{display:block;font-size:.8rem;margin-top:.5rem}summary a{display:inline-block;min-height:44px} @media(max-width:40rem){body{padding:.75rem}.scenario-grid{grid-template-columns:minmax(0,1fr)}.requirement-content,.scenario{padding:.75rem}.requirement>summary,.case>summary{padding:.75rem}.metrics{grid-template-columns:repeat(auto-fit,minmax(min(100%,11rem),1fr))}h1{font-size:1.65rem}}
+</style></head>
 <body><main><h1>Moura Requirement Coverage</h1><p>Coverage of declared traceability and evidence. Moura does not prove that a test semantically verifies the specification it declares.</p>
-<div class="metrics">${cards}</div><h2>Pair statuses</h2><ul>${statusCounts}</ul><h2>Per-layer coverage</h2><table><thead><tr><th>Layer</th><th>PASS / required</th></tr></thead><tbody>${layers}</tbody></table>
-<h2>Requirement hierarchy and exact verification gaps</h2>${hierarchy}<h2>Reverse Traceability</h2>${traceabilityHtml}<h2>Evidence Issues</h2>${issueHtml}</main></body></html>\n`);
+<div class="metrics">${cards}</div><h2>Requirement Map</h2><p>Expand a Requirement or Case to inspect exact verification and Evidence.</p><div class="requirement-map">${hierarchy}</div>
+<h2>Pair statuses</h2><ul>${statusCounts}</ul><h2>Per-layer coverage</h2><table><thead><tr><th>Layer</th><th>PASS / required</th></tr></thead><tbody>${layers}</tbody></table><h2>Reverse Traceability</h2>${traceabilityHtml}<h2>Evidence Issues</h2>${issueHtml}</main></body></html>\n`);
 }
 
 function count(value: CoverageCount): string {
@@ -291,9 +303,11 @@ function sourceLink(
   locations: ReadonlyMap<string, RequirementSourceLocation>,
 ): string {
   const location = locations.get(id);
+  const title = location?.title || id;
+  const label = `<span class="node-title" data-map-title="${escapeHtml(id)}" data-map-source="${escapeHtml(location?.source ?? "")}">${renderText(title)}</span><span class="node-id">${renderText(id)}</span>`;
   return location
-    ? `<a href="${escapeHtml(requirementSourceHref(location))}">${renderText(id)}</a>`
-    : renderText(id);
+    ? `<a class="node-link" href="${escapeHtml(requirementSourceHref(location))}">${label}</a>`
+    : label;
 }
 
 function renderSourceContent(
@@ -316,4 +330,33 @@ function renderSourceContent(
         : escaped;
     })
     .join("\n");
+}
+
+function nodeBadge(node: CoverageNodeStatus): string {
+  return pairBadge(node.status, node.severity);
+}
+
+function pairBadge(status: string, severity: string): string {
+  const symbol =
+    severity === "success" ? "✓" : severity === "warning" ? "!" : "×";
+  return `<span class="status badge ${status.toLowerCase()}" data-severity="${severity}"><span aria-hidden="true">${symbol}</span> <span>${renderText(status)}</span></span> <span class="severity ${severity}">${renderText(severity)}</span>`;
+}
+
+/** Attach titles only from validated views, using canonical identity and source. */
+export function withRequirementMapTranslation(
+  html: string,
+  locations: ReadonlyMap<string, RequirementSourceLocation>,
+): string {
+  return html.replace(
+    /<span class="node-title" data-map-title="([^"]*)" data-map-source="([^"]*)">([^<]*)<\/span>/gu,
+    (match, id: string, source: string, title: string) => {
+      const location = [...locations.entries()].find(
+        ([key, value]) =>
+          escapeHtml(key) === id && escapeHtml(value.source) === source,
+      )?.[1];
+      return location?.title
+        ? `<span class="node-title" data-map-title="${id}" data-map-source="${source}" data-ja="${escapeHtml(location.title)}">${title}</span>`
+        : match;
+    },
+  );
 }

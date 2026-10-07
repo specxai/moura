@@ -309,3 +309,45 @@ match manifest IDs. The validator does not infer Moura references from link
 labels or arbitrary natural-language prose, or validate translation meaning.
 Reference identifiers are compared using Markdown's case/whitespace
 normalization rather than their original source spelling.
+
+## REQ-009 Understand requirement structure and verification visually
+
+### SCN-001 Explore the Requirement Map
+
+#### CASE-001 Navigate titled, responsive requirement groups and Evidence
+
+Given a structurally valid project and normalized Evidence, Requirement Coverage
+shall show each Requirement as a collapsible container, its Scenarios as wrapping
+columns on desktop and a single column on mobile, and its Cases as expandable
+verification units. Titles shall come from the configured canonical Markdown
+locations and be more prominent than supplementary canonical IDs. Source links
+shall reuse existing anchors. PASS Requirements shall initially be collapsed;
+Requirements with verification gaps shall initially be expanded. Case details
+shall retain exact required-layer pair statuses and matching Evidence, including
+its layer, execution status, and source. Titles, IDs, layers, and Evidence source
+text shall be HTML escaped. Layout shall remain usable at 320px without page
+horizontal scrolling, with keyboard-operable expansion and readable tap targets.
+Summary, per-layer coverage, Reverse Traceability and Evidence Issues, including
+their successful outcomes, shall remain available.
+
+#### CASE-002 Reflect authoritative verification status throughout the map
+
+Given authoritative Check pair results, the Coverage aggregation used by both
+summary and map shall mark a node PASS only when all required descendant pairs
+are PASS, INCOMPLETE when descendants include warning pairs and no error pairs,
+and FAIL when any descendant pair has error severity. MISSING, FAIL and BROKEN
+shall retain error severity; SKIPPED and UNIMPLEMENTED shall retain warning
+severity. Exact pair statuses shall remain visible in Case details. Cards shall
+combine a pale status background, border, badge, symbol and text so status does
+not depend on color alone. Missing required Check pairs shall not silently
+produce a successful map.
+
+#### CASE-003 Use validated Japanese titles with canonical English fallback
+
+Given the existing report locale selection and optional validated Japanese
+Requirement and Specification views, the quality site shall enrich matching
+canonical Map titles with Japanese presentation text. Translations shall not
+change identity, verification, hierarchy or canonical content. Nodes outside
+the translated source, or unavailable or invalid Japanese views, shall retain
+canonical English titles. Fixed Map UI text shall use the existing report
+locale mechanism, and source navigation shall carry the selected locale.

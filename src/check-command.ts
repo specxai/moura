@@ -67,6 +67,7 @@ export type ProjectCheckEvaluation =
       >;
       readonly requirementSources: ReadonlyMap<string, string>;
       readonly specificationSources: ReadonlyMap<string, string>;
+      readonly evidence: EvidenceAdapterResult["evidence"];
       readonly check: VerificationProjectCheckResult;
       readonly adapterIssues: EvidenceAdapterResult["issues"];
       readonly traceabilityDiagnostics: readonly TraceabilityDiagnostic[];
@@ -100,6 +101,7 @@ export async function evaluateProjectDirectory(
     requirementLocations: project.requirementLocations ?? new Map(),
     requirementSources: project.requirementSources ?? new Map(),
     specificationSources: project.specificationSources ?? new Map(),
+    evidence: adapted.evidence,
     check: checkVerification(project.manifest, adapted.evidence),
     adapterIssues: adapted.issues,
     traceabilityDiagnostics,

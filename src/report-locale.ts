@@ -31,6 +31,12 @@ const japanese: Readonly<Record<string, string>> = {
   "Commit:": "コミット:",
   "Coverage of declared traceability and evidence. Moura does not prove that a test semantically verifies the specification it declares.":
     "宣言されたトレーサビリティとエビデンスのカバレッジ。Moura は、テストが宣言した仕様を意味的に検証していることを証明しません。",
+  "Requirement Map": "要求マップ",
+  "Expand a Requirement or Case to inspect exact verification and Evidence.":
+    "要求やケースを展開して検証とエビデンスの詳細を確認できます。",
+  "Required verification layers": "必須検証レイヤー",
+  Evidence: "エビデンス",
+  "No Evidence available": "エビデンスなし",
   Requirements: "要求",
   Scenarios: "シナリオ",
   Cases: "ケース",
@@ -103,6 +109,11 @@ export function withReportLocale(html: string): string {
       text: string,
       closing: string,
     ) => {
+      if (
+        attributes.includes("data-map-title=") ||
+        attributes.includes("data-ja=")
+      )
+        return match;
       const translation = japanese[text];
       return translation
         ? `<${tag}${attributes} data-ja="${escapeHtml(translation)}">${text}</${closing}>`

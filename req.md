@@ -44,3 +44,10 @@ traceability, and generate Requirement Coverage.
 Moura's repository automation shall generate Japanese views of the canonical
 English Requirement and Specification documents while deterministically
 preserving their machine-relevant traceability content.
+
+## REQ-009 Understand requirement structure and verification visually
+
+Moura shall present Requirement Coverage as a responsive Requirement Map of
+Requirements, Scenarios, Cases, and drill-down Evidence, emphasizing titles from
+canonical Markdown and preserving authoritative verification semantics,
+diagnostics, and the existing report locale and source navigation.

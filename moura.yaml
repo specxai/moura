@@ -84,3 +84,11 @@ requirements:
       - id: SCN-001
         cases:
           - { id: CASE-001, verify: [unit] }
+
+  - id: REQ-009
+    scenarios:
+      - id: SCN-001
+        cases:
+          - { id: CASE-001, verify: [unit, integration] }
+          - { id: CASE-002, verify: [unit] }
+          - { id: CASE-003, verify: [unit, integration] }

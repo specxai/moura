@@ -40,9 +40,11 @@ const japanese: Readonly<Record<string, string>> = {
   Layer: "レイヤー",
   "PASS / required": "PASS / 必須",
   "Requirement hierarchy and exact verification gaps": "要求の階層と検証の不足",
-  "Reverse traceability diagnostics": "逆方向トレーサビリティの診断",
-  "Evidence issues": "エビデンスの問題",
-  "None.": "なし。",
+  "Reverse Traceability": "逆方向トレーサビリティ",
+  "Evidence Issues": "エビデンスの問題",
+  "✓ No issues found": "✓ 問題なし",
+  "Unable to complete diagnostics; see Evidence Issues.":
+    "診断できません。エビデンスの問題を確認してください。",
   "← Requirement Coverage": "← 要求カバレッジ",
   Specification: "仕様",
   "English canonical source; Japanese is a translation.":

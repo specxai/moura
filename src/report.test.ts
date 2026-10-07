@@ -46,6 +46,57 @@ requirements:
 `).value!;
 
 describe("requirement coverage report", () => {
+  it("shows successful diagnostic checks in both locales without implying complete coverage", () => {
+    const html = renderCoverageReport(
+      manifest,
+      checkVerification(manifest, []),
+    );
+    expect(html).toContain(
+      '<h2 data-ja="逆方向トレーサビリティ">Reverse Traceability</h2><p class="success" data-ja="✓ 問題なし">✓ No issues found</p>',
+    );
+    expect(html).toContain(
+      '<h2 data-ja="エビデンスの問題">Evidence Issues</h2><p class="success" data-ja="✓ 問題なし">✓ No issues found</p>',
+    );
+    expect(html).not.toContain("None.");
+    expect(html).not.toContain("なし。");
+    expect(html).toContain("MISSING");
+    expect(html).toContain('data-language="ja"');
+    expect(html).toContain('data-language="en"');
+  });
+
+  it.each([
+    "unreadable-results-directory",
+    "unreadable-result-file",
+    "malformed-json",
+    "invalid-result",
+  ] as const)("does not claim successful diagnostics for %s", (code) => {
+    const html = renderCoverageReport(
+      manifest,
+      checkVerification(manifest, []),
+      [{ code, message: "Cannot check <result>" }],
+    );
+    expect(html).toContain(
+      'data-ja="診断できません。エビデンスの問題を確認してください。">Unable to complete diagnostics; see Evidence Issues.',
+    );
+    expect(html).toContain(`${code}: Cannot check &lt;result&gt;`);
+    expect(html).not.toContain("✓ No issues found");
+    expect(html).not.toContain("✓ 問題なし");
+  });
+
+  it("does not claim successful checks when the results directory is missing", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "moura-report-test-"));
+    directories.push(directory);
+    await writeProject(directory);
+    await rm(join(directory, "allure-results"), { recursive: true });
+    const result = await reportProjectDirectory(directory);
+    expect(result.exitCode).toBe(1);
+    const html = await readFile(result.outputPath!, "utf8");
+    expect(html).toContain("unreadable-results-directory:");
+    expect(html).toContain("Unable to complete diagnostics");
+    expect(html).not.toContain("✓ No issues found");
+    expect(html).not.toContain("✓ 問題なし");
+  });
+
   it("renders hierarchy, per-layer aggregation, every status, gaps, and escaped identities deterministically", () => {
     const evidence = [
       {
@@ -307,6 +358,10 @@ requirements:
     const html = renderCoverageReport(manifest, checked);
     expect(html).toContain("unknown-evidence-id: unknown [unit]:");
     expect(html).toContain("unknown-evidence-id: unknown [integration]:");
+    const evidenceSection = html.split(
+      '<h2 data-ja="エビデンスの問題">Evidence Issues</h2>',
+    )[1]!;
+    expect(evidenceSection).not.toContain("✓ No issues found");
   });
 
   it("renders reverse traceability diagnostics separately from pair coverage", async () => {
@@ -324,9 +379,15 @@ requirements:
     const result = await reportProjectDirectory(directory);
     expect(result.exitCode).toBe(0);
     const html = await readFile(result.outputPath!, "utf8");
-    expect(html).toContain("Reverse traceability diagnostics");
+    expect(html).toContain("Reverse Traceability");
     expect(html).toContain("WARNING UNMAPPED unmapped report test");
     expect(html).toContain("Required Case × layer pairs");
+    const reverseSection = html
+      .split(
+        '<h2 data-ja="逆方向トレーサビリティ">Reverse Traceability</h2>',
+      )[1]!
+      .split('<h2 data-ja="エビデンスの問題">Evidence Issues</h2>')[0]!;
+    expect(reverseSection).not.toContain("✓ No issues found");
 
     const strict = await reportProjectDirectory(directory, {
       strictTraceability: true,
@@ -396,6 +457,7 @@ requirements:
       "malformed-json: broken-result.json: Invalid &lt;JSON&gt;",
     );
     expect(html).toContain("unreadable-results-directory: Cannot read");
+    expect(html).not.toContain("✓ No issues found");
     expect(html).not.toContain("undefined");
   });
 

@@ -3,7 +3,7 @@ import { describe, expect, it as vitestIt } from "vitest";
 
 import { mouraEvidenceTest } from "./test-support/moura-evidence.js";
 
-import { reportLocaleScript } from "./report-locale.js";
+import { reportLocaleScript, withReportLocale } from "./report-locale.js";
 
 // Match report.test.ts: these checks exercise generated report navigation and
 // canonical source presentation, including every parameterized invocation.
@@ -80,6 +80,46 @@ function openPage(
 }
 
 describe("report language navigation", () => {
+  it.each(["en", "ja"])(
+    "displays diagnostic labels and outcomes in %s through the shipped locale script",
+    (locale) => {
+      const html = withReportLocale(
+        '<body><main><h2>Reverse Traceability</h2><p class="success">✓ No issues found</p><h2>Evidence Issues</h2><p class="success">✓ No issues found</p><p class="warning">Unable to complete diagnostics; see Evidence Issues.</p></main></body>',
+      );
+      const elements = [...html.matchAll(/data-ja="([^"]+)">([^<]+)</gu)].map(
+        ([, ja, en]) => ({ dataset: { ja }, textContent: en }),
+      );
+      expect(elements).toHaveLength(5);
+      runInNewContext(reportLocaleScript, {
+        document: {
+          documentElement: { lang: "en" },
+          querySelector: () => null,
+          querySelectorAll: (selector: string) =>
+            selector === "[data-ja]" ? elements : [],
+        },
+        location: { href: `file:///tmp/report.html?lang=${locale}`, hash: "" },
+        URL,
+      });
+      expect(elements.map((element) => element.textContent)).toEqual(
+        locale === "ja"
+          ? [
+              "逆方向トレーサビリティ",
+              "✓ 問題なし",
+              "エビデンスの問題",
+              "✓ 問題なし",
+              "診断できません。エビデンスの問題を確認してください。",
+            ]
+          : [
+              "Reverse Traceability",
+              "✓ No issues found",
+              "Evidence Issues",
+              "✓ No issues found",
+              "Unable to complete diagnostics; see Evidence Issues.",
+            ],
+      );
+    },
+  );
+
   it.each(["https:", "file:"])(
     "carries Japanese through source and return links on %s",
     (protocol) => {

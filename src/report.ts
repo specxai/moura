@@ -215,20 +215,24 @@ export function renderCoverageReport(
     ...adapterIssues.map(formatEvidenceAdapterIssue),
     ...check.evidenceIssues.map(formatEvidenceIssue),
   ];
+  // Adapter problems can hide unmapped results, so zero diagnostics alone
+  // cannot establish a successful reverse traceability check.
   const traceabilityHtml =
     traceabilityDiagnostics.length === 0
-      ? "<p>None.</p>"
+      ? adapterIssues.length === 0
+        ? '<p class="success">✓ No issues found</p>'
+        : '<p class="warning">Unable to complete diagnostics; see Evidence Issues.</p>'
       : `<ul>${traceabilityDiagnostics.map((diagnostic) => `<li class="${diagnostic.severity}">${renderText(formatTraceabilityDiagnostic(diagnostic))}</li>`).join("")}</ul>`;
   const issueHtml =
     issues.length === 0
-      ? "<p>None.</p>"
+      ? '<p class="success">✓ No issues found</p>'
       : `<ul>${issues.map((issue) => `<li>${renderText(issue)}</li>`).join("")}</ul>`;
   return withReportLocale(`<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="format-detection" content="telephone=no"><title>Moura Requirement Coverage</title>
 <style>body{font:16px system-ui,sans-serif;line-height:1.5;max-width:72rem;margin:auto;padding:2rem;color:#172033}h1,h2,h3,h4{line-height:1.2}.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:1rem}.metric,.case{border:1px solid #ccd3df;border-radius:.5rem;padding:1rem}.metric span{display:block;font-size:1.4rem}.status{font-weight:700}.pass,.success{color:#167044}.fail,.broken,.missing,.error{color:#b42318}.skipped,.unimplemented,.warning{color:#854d0e}.severity{font-size:.8em;text-transform:uppercase}table{border-collapse:collapse}th,td{border:1px solid #ccd3df;padding:.5rem;text-align:left}code{font-size:.9em}</style></head>
 <body><main><h1>Moura Requirement Coverage</h1><p>Coverage of declared traceability and evidence. Moura does not prove that a test semantically verifies the specification it declares.</p>
 <div class="metrics">${cards}</div><h2>Pair statuses</h2><ul>${statusCounts}</ul><h2>Per-layer coverage</h2><table><thead><tr><th>Layer</th><th>PASS / required</th></tr></thead><tbody>${layers}</tbody></table>
-<h2>Requirement hierarchy and exact verification gaps</h2>${hierarchy}<h2>Reverse traceability diagnostics</h2>${traceabilityHtml}<h2>Evidence issues</h2>${issueHtml}</main></body></html>\n`);
+<h2>Requirement hierarchy and exact verification gaps</h2>${hierarchy}<h2>Reverse Traceability</h2>${traceabilityHtml}<h2>Evidence Issues</h2>${issueHtml}</main></body></html>\n`);
 }
 
 function count(value: CoverageCount): string {

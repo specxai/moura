@@ -26,11 +26,13 @@ export interface RequirementSourceLocation {
   readonly source: string;
   readonly anchor: string;
   readonly line: number;
+  readonly title?: string;
 }
 
 interface Heading {
   readonly depth: number;
   readonly token: string;
+  readonly title: string;
   readonly line: number;
 }
 
@@ -66,9 +68,9 @@ export function locateRequirementMarkdown(
   return new Map(
     headings(text)
       .filter(({ token }) => requirementIds.has(token))
-      .map(({ token, line }) => [
+      .map(({ token, line, title }) => [
         token,
-        { source, anchor: requirementAnchor(token), line },
+        { source, anchor: requirementAnchor(token), line, title },
       ]),
   );
 }
@@ -203,6 +205,7 @@ export function locateSpecificationMarkdown(
       locations.set(id, {
         source,
         line: heading.line,
+        title: heading.title,
         anchor: requirementAnchor(id),
       });
   }
@@ -239,7 +242,13 @@ export function atxHeading(
     source.slice(marker[0].length),
   )?.[1];
   if (!token) return undefined;
-  return { depth: node.depth, token, line: node.position!.start.line };
+  const title = source
+    .slice(marker[0].length)
+    .trimStart()
+    .slice(token.length)
+    .replace(/[\t ]+#+[\t ]*$/u, "")
+    .trim();
+  return { depth: node.depth, token, title, line: node.position!.start.line };
 }
 
 function requirementAnchor(value: string): string {

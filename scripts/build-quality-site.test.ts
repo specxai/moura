@@ -34,7 +34,7 @@ import type { VerificationProjectCheckResult } from "../src/check.js";
 
 const it = mouraEvidenceTest(
   vitestIt,
-  ["REQ-005/SCN-002/CASE-002"],
+  ["REQ-005/SCN-002/CASE-002", "REQ-009/SCN-001/CASE-003"],
   "integration",
 );
 
@@ -169,6 +169,15 @@ describe("quality site assembly", () => {
       expect(report).toContain('data-language="ja"');
       expect(report).toContain('data-ja="Moura 要求カバレッジ"');
       expect(report).toContain(
+        'data-map-title="REQ-001" data-map-source="req.md" data-ja="読む">Read</span>',
+      );
+      expect(report).toContain(
+        'data-map-title="REQ-001/SCN-001/CASE-001" data-map-source="spec.md" data-ja="読む">Read</span>',
+      );
+      expect(report).toContain(
+        'data-map-title="REQ-002" data-map-source="extra.md">English only</span>',
+      );
+      expect(report).toContain(
         `./sources/${requirementSourceFilename("spec.md")}#requirement-52-45-51-2d-30-30-31-2f-53-43-4e-2d-30-30-31`,
       );
       for (const source of ["req.md", "spec.md"]) {
@@ -287,9 +296,24 @@ describe("quality site assembly", () => {
         expect((await reportProjectDirectory(f.root)).exitCode).toBe(0);
         expect(await snapshot()).toEqual(baselineFiles);
         await buildQualitySite(f.root);
-        expect(
-          await readFile(join(f.root, "_site/moura/index.html"), "utf8"),
-        ).toBe(await readFile(join(f.root, "moura-report/index.html"), "utf8"));
+        const siteReport = await readFile(
+          join(f.root, "_site/moura/index.html"),
+          "utf8",
+        );
+        const canonicalReport = await readFile(
+          join(f.root, "moura-report/index.html"),
+          "utf8",
+        );
+        if (state === "valid") {
+          expect(siteReport).toContain('data-ja="読む"');
+          // Only presentation attributes may differ from the canonical report.
+          expect(
+            siteReport.replace(
+              /(data-map-source="[^"]*") data-ja="[^"]*"/gu,
+              "$1",
+            ),
+          ).toBe(canonicalReport);
+        } else expect(siteReport).toBe(canonicalReport);
       }
     } finally {
       await rm(f.root, { recursive: true, force: true });

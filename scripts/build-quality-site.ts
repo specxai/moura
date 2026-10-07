@@ -17,6 +17,7 @@ import {
 } from "../src/markdown.js";
 import {
   renderRequirementSource,
+  withRequirementMapTranslation,
   requirementSourceFilename,
 } from "../src/report.js";
 import { withReportLocale } from "../src/report-locale.js";
@@ -48,6 +49,7 @@ export async function buildQualitySite(root = "."): Promise<void> {
     const manifest = parseManifest(
       readFileSync(path("moura.yaml"), "utf8"),
     ).value!;
+    const mapLocations = new Map();
     for (const [source, role, locate] of [
       ["req.md", "requirements", locateRequirementMarkdown],
       ["spec.md", "specifications", locateSpecificationMarkdown],
@@ -58,6 +60,13 @@ export async function buildQualitySite(root = "."): Promise<void> {
       // Only enrich bundled canonical sources, never create a translation-only ID.
       if (!existsSync(destination)) continue;
       const canonical = readFileSync(path(source), "utf8");
+      for (const [id, location] of locate(
+        japanese.views[role],
+        source,
+        manifest,
+      ))
+        if (role === "requirements" || id.includes("/"))
+          mapLocations.set(id, location);
       writeFileSync(
         destination,
         renderRequirementSource(
@@ -71,6 +80,14 @@ export async function buildQualitySite(root = "."): Promise<void> {
         ),
       );
     }
+    const reportPath = path("_site/moura/index.html");
+    writeFileSync(
+      reportPath,
+      withRequirementMapTranslation(
+        readFileSync(reportPath, "utf8"),
+        mapLocations,
+      ),
+    );
   } else {
     console.log(japanese.messages.join("\n"));
     if (process.env.GITHUB_STEP_SUMMARY)

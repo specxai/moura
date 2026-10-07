@@ -184,10 +184,10 @@ requirements:
     expect(result.exitCode).toBe(0);
     const html = await readFile(result.outputPath!, "utf8");
     expect(html).toContain(
-      '<h2><a href="./sources/source-7748c55e0769ceb2f4c9a94e5c4267886590b30037234b1bd6b16a479df82c95.html#requirement-52-45-51-2d-41">REQ-A</a></h2>',
+      '<a class="node-link" href="./sources/source-7748c55e0769ceb2f4c9a94e5c4267886590b30037234b1bd6b16a479df82c95.html#requirement-52-45-51-2d-41"><span class="node-title" data-map-title="REQ-A" data-map-source="requirements &amp; notes/first file.md">Safety &amp; access</span>',
     );
     expect(html).toContain(
-      '<h2><a href="./sources/source-23116f7d4576a6c85674e32bf48acefbe1062338b77606f53f2a91c29099e562.html#requirement-52-45-51-2d-42">REQ-B</a></h2>',
+      '<a class="node-link" href="./sources/source-23116f7d4576a6c85674e32bf48acefbe1062338b77606f53f2a91c29099e562.html#requirement-52-45-51-2d-42"><span class="node-title" data-map-title="REQ-B" data-map-source="requirements &amp; notes/second.md">Überprüfung</span>',
     );
     expect(html).toContain("Requirements</strong><span>0 / 2 (0%)");
     expect(html).toContain("MISSING");
@@ -284,7 +284,7 @@ requirements:
     const result = await reportProjectDirectory(directory);
     expect(result.exitCode).toBe(0);
     const html = await readFile(result.outputPath!, "utf8");
-    const href = /<h2><a href="([^"]+)">REQ-LONG<\/a><\/h2>/u.exec(html)?.[1];
+    const href = /<h2><a class="node-link" href="([^"]+)">/u.exec(html)?.[1];
     expect(href).toMatch(
       /^\.\/sources\/source-[a-f0-9]{64}\.html#requirement-52-45-51-2d-4c-4f-4e-47$/u,
     );

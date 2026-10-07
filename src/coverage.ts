@@ -24,41 +24,19 @@ export function summarizeCoverage(
   manifest: MouraManifest,
   check: VerificationProjectCheckResult,
 ): CoverageSummary {
-  const byCase = new Map<string, readonly VerificationCheckResult[]>();
-  for (const entry of check.entries)
-    byCase.set(entry.caseId, [...(byCase.get(entry.caseId) ?? []), entry]);
-
-  let coveredRequirements = 0;
-  let scenarios = 0;
-  let coveredScenarios = 0;
-  let cases = 0;
-  let coveredCases = 0;
-  for (const requirement of manifest.requirements) {
-    let requirementCovered = true;
-    for (const scenario of requirement.scenarios) {
-      scenarios += 1;
-      let scenarioCovered = true;
-      for (const testCase of scenario.cases) {
-        cases += 1;
-        const id = canonicalId([requirement, scenario, testCase]);
-        const covered =
-          byCase.get(id)?.every((entry) => entry.status === "PASS") ?? false;
-        if (covered) coveredCases += 1;
-        else scenarioCovered = false;
-      }
-      if (scenarioCovered) coveredScenarios += 1;
-      else requirementCovered = false;
-    }
-    if (requirementCovered) coveredRequirements += 1;
-  }
+  const hierarchy = aggregateCoverageHierarchy(manifest, check);
+  const nodes = [...hierarchy.values()];
+  const countKind = (kind: CoverageNodeStatus["kind"]): CoverageCount => ({
+    covered: nodes.filter(
+      (node) => node.kind === kind && node.status === "PASS",
+    ).length,
+    total: nodes.filter((node) => node.kind === kind).length,
+  });
 
   return {
-    requirements: {
-      covered: coveredRequirements,
-      total: manifest.requirements.length,
-    },
-    scenarios: { covered: coveredScenarios, total: scenarios },
-    cases: { covered: coveredCases, total: cases },
+    requirements: countKind("requirement"),
+    scenarios: countKind("scenario"),
+    cases: countKind("case"),
     pairs: {
       covered: check.entries.filter((entry) => entry.status === "PASS").length,
       total: check.entries.length,
@@ -82,3 +60,71 @@ export const coverageStatuses: readonly VerificationCheckStatus[] = [
   "UNIMPLEMENTED",
   "MISSING",
 ];
+
+export interface CoverageNodeStatus {
+  readonly kind: "requirement" | "scenario" | "case";
+  readonly status: "PASS" | "INCOMPLETE" | "FAIL";
+  readonly severity: "success" | "warning" | "error";
+}
+
+/** The summary and map share this roll-up of authoritative Check pair severity.
+ * MISSING remains error; SKIPPED and UNIMPLEMENTED remain warning.
+ * Exact pair statuses are retained by Check, rather than replaced by this roll-up.
+ */
+export function aggregateCoverageHierarchy(
+  manifest: MouraManifest,
+  check: VerificationProjectCheckResult,
+): ReadonlyMap<string, CoverageNodeStatus> {
+  const nodes = new Map<string, CoverageNodeStatus>();
+  const byCase = new Map<string, VerificationCheckResult[]>();
+  for (const entry of check.entries)
+    byCase.set(entry.caseId, [...(byCase.get(entry.caseId) ?? []), entry]);
+  const rollUp = (
+    kind: CoverageNodeStatus["kind"],
+    children: readonly { readonly severity: CoverageNodeStatus["severity"] }[],
+  ): CoverageNodeStatus => {
+    const severity =
+      children.length === 0 ||
+      children.some((child) => child.severity === "error")
+        ? "error"
+        : children.some((child) => child.severity === "warning")
+          ? "warning"
+          : "success";
+    return {
+      kind,
+      severity,
+      status:
+        severity === "success"
+          ? "PASS"
+          : severity === "warning"
+            ? "INCOMPLETE"
+            : "FAIL",
+    };
+  };
+  for (const requirement of manifest.requirements) {
+    const scenarios: CoverageNodeStatus[] = [];
+    for (const scenario of requirement.scenarios) {
+      const cases: CoverageNodeStatus[] = [];
+      for (const testCase of scenario.cases) {
+        const id = canonicalId([requirement, scenario, testCase]);
+        const entries = byCase.get(id) ?? [];
+        for (const layer of [
+          ...testCase.verify,
+          ...(testCase.unimplemented ?? []),
+        ])
+          if (!entries.some((entry) => entry.layer === layer))
+            throw new Error(
+              `Check result omitted required pair ${id} × ${layer}`,
+            );
+        const node = rollUp("case", entries);
+        nodes.set(id, node);
+        cases.push(node);
+      }
+      const node = rollUp("scenario", cases);
+      nodes.set(canonicalId([requirement, scenario]), node);
+      scenarios.push(node);
+    }
+    nodes.set(canonicalId([requirement]), rollUp("requirement", scenarios));
+  }
+  return nodes;
+}

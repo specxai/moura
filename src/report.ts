@@ -170,7 +170,7 @@ export function renderCoverageReport(
   const statusCounts = coverageStatuses
     .map(
       (status) =>
-        `<li><span class="status ${status.toLowerCase()}" data-severity="${verificationSeverity(status)}">${status}</span> <span class="severity ${verificationSeverity(status)}">${verificationSeverity(status)}</span> ${check.entries.filter((entry) => entry.status === status).length}</li>`,
+        `<li><span class="status ${status.toLowerCase()}" data-severity="${verificationSeverity(status)}">${status}</span> <span class="sr-only"> severity: ${verificationSeverity(status)}</span> ${check.entries.filter((entry) => entry.status === status).length}</li>`,
     )
     .join("");
   const layers = summary.layers
@@ -207,8 +207,8 @@ export function renderCoverageReport(
               const evidenceHtml =
                 matchingEvidence.length === 0
                   ? "<p>No Evidence available</p>"
-                  : `<ul>${matchingEvidence.map((item) => `<li><code>${renderText(item.layer)}</code> <span>${renderText(item.status)}</span> <code>${renderText(item.source ?? "")}</code></li>`).join("")}</ul>`;
-              return `<details class="case map-node" data-severity="${node.severity}"><summary><h4>${sourceLink(caseId, specificationLocations)}</h4>${nodeBadge(node)}<span class="required-layers"><span>Required verification layers</span>: ${[...testCase.verify, ...(testCase.unimplemented ?? [])].map(renderText).join(", ")}</span></summary><div class="case-details"><h4>Pair statuses</h4><ul>${statuses}</ul><h4>Evidence</h4>${evidenceHtml}</div></details>`;
+                  : `<ul class="evidence-list">${matchingEvidence.map(renderEvidence).join("")}</ul>`;
+              return `<details class="case map-node" data-severity="${node.severity}"><summary aria-expanded="false"><h4>${sourceLink(caseId, specificationLocations)}</h4>${nodeBadge(node)}<span class="required-layers"><span>Required verification layers</span>: ${[...testCase.verify, ...(testCase.unimplemented ?? [])].map(renderText).join(", ")}</span><span class="chevron" aria-hidden="true"></span></summary><div class="case-details"><h4>Pair statuses</h4><ul>${statuses}</ul><h4>Evidence</h4>${evidenceHtml}</div></details>`;
             })
             .join("");
           const scenarioId = canonicalId([requirement, scenario]);
@@ -219,7 +219,7 @@ export function renderCoverageReport(
       const requirementId = canonicalId([requirement]);
       const node = nodeStatuses.get(requirementId)!;
       const specification = specificationLocations.get(requirementId);
-      return `<details class="requirement map-node" data-severity="${node.severity}"${node.status === "PASS" ? "" : " open"}><summary><h2>${sourceLink(requirementId, requirementLocations)}</h2>${nodeBadge(node)}</summary><div class="requirement-content">${specification ? `<p><a href="${escapeHtml(requirementSourceHref(specification))}">Specification</a></p>` : ""}<div class="scenario-grid">${scenarios}</div></div></details>`;
+      return `<details class="requirement map-node" data-severity="${node.severity}"${node.status === "PASS" ? "" : " open"}><summary aria-expanded="${node.status === "PASS" ? "false" : "true"}"><h2>${sourceLink(requirementId, requirementLocations)}</h2>${nodeBadge(node)}<span class="chevron" aria-hidden="true"></span></summary><div class="requirement-content">${specification ? `<p><a href="${escapeHtml(requirementSourceHref(specification))}">Specification</a></p>` : ""}<div class="scenario-grid">${scenarios}</div></div></details>`;
     })
     .join("");
   const issues = [
@@ -240,11 +240,11 @@ export function renderCoverageReport(
       : `<ul>${issues.map((issue) => `<li>${renderText(issue)}</li>`).join("")}</ul>`;
   return withReportLocale(`<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="format-detection" content="telephone=no"><title>Moura Requirement Coverage</title>
-<style>body{font:16px system-ui,sans-serif;line-height:1.5;max-width:72rem;margin:auto;padding:2rem;color:#172033}h1,h2,h3,h4{line-height:1.2}.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:1rem}.metric,.case{border:1px solid #ccd3df;border-radius:.5rem;padding:1rem}.metric span{display:block;font-size:1.4rem}.status{font-weight:700}.pass,.success{color:#167044}.fail,.broken,.missing,.error{color:#b42318}.skipped,.unimplemented,.warning{color:#854d0e}.severity{font-size:.8em;text-transform:uppercase}table{border-collapse:collapse}th,td{border:1px solid #ccd3df;padding:.5rem;text-align:left}code{font-size:.9em}*{box-sizing:border-box}.requirement-map{display:grid;gap:1rem}.map-node{border:1px solid #ccd3df;border-radius:.65rem;min-width:0;overflow-wrap:anywhere;color:#172033}.map-node[data-severity=success]{background:#f3faf5;border-color:#94c9a8}.map-node[data-severity=warning]{background:#fffbef;border-color:#dec17c}.map-node[data-severity=error]{background:#fff6f5;border-color:#dfa6a0}.map-node[data-severity=neutral]{background:#f6f7f9}.requirement>summary,.case>summary{padding:1rem;cursor:pointer;min-height:44px}.requirement>summary h2,.case>summary h4{display:inline-block;vertical-align:middle;margin:0 .75rem .5rem 0;max-width:100%}.requirement-content{padding:0 1rem 1rem}.scenario-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr));gap:1rem;align-items:start}.scenario{padding:1rem}.scenario header h3{margin:0 0 .5rem}.cases{display:grid;gap:.75rem;margin-top:1rem}.case{padding:0}.case-details{padding:0 1rem 1rem}.node-title{display:block;font-size:1em;font-weight:750}.node-id{display:block;font:normal .75rem ui-monospace,monospace;margin-top:.4rem;color:#4b5565}.node-link{color:inherit;text-decoration:none}.node-link:hover .node-title{text-decoration:underline}.node-link:focus-visible,summary:focus-visible{outline:3px solid #2563eb;outline-offset:3px}.badge{display:inline-flex;align-items:center;gap:.3rem;border:1px solid currentColor;border-radius:1rem;padding:.15rem .6rem;font-size:.8rem;white-space:nowrap}.badge[data-severity=success]{color:#16643d;background:#e4f3e9}.badge[data-severity=warning]{color:#754407;background:#fff0c5}.badge[data-severity=error]{color:#a12118;background:#fce5e2}.required-layers{display:block;font-size:.8rem;margin-top:.5rem}summary a{display:inline-block;min-height:44px} @media(max-width:40rem){body{padding:.75rem}.scenario-grid{grid-template-columns:minmax(0,1fr)}.requirement-content,.scenario{padding:.75rem}.requirement>summary,.case>summary{padding:.75rem}.metrics{grid-template-columns:repeat(auto-fit,minmax(min(100%,11rem),1fr))}h1{font-size:1.65rem}}
+<style>body{font:16px system-ui,sans-serif;line-height:1.5;max-width:72rem;margin:auto;padding:2rem;color:#172033}h1,h2,h3,h4{line-height:1.2}.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:1rem}.metric,.case{border:1px solid #ccd3df;border-radius:.5rem;padding:1rem}.metric span{display:block;font-size:1.4rem}.status{font-weight:700}.pass,.success{color:#167044}.fail,.broken,.missing,.error{color:#b42318}.skipped,.unimplemented,.warning{color:#854d0e}.severity{font-size:.8em;text-transform:uppercase}table{border-collapse:collapse}th,td{border:1px solid #ccd3df;padding:.5rem;text-align:left}code{font-size:.9em}*{box-sizing:border-box}.requirement-map{display:grid;gap:1rem}.map-node{border:1px solid #ccd3df;border-radius:.65rem;min-width:0;overflow-wrap:anywhere;color:#172033}.map-node[data-severity=success]{background:#f3faf5;border-color:#94c9a8}.map-node[data-severity=warning]{background:#fffbef;border-color:#dec17c}.map-node[data-severity=error]{background:#fff6f5;border-color:#dfa6a0}.map-node[data-severity=neutral]{background:#f6f7f9}.requirement>summary,.case>summary{position:relative;display:block;list-style:none;padding:1rem 4.5rem 1rem 1rem;cursor:pointer;min-height:44px}.map-node>summary::-webkit-details-marker{display:none}.chevron{position:absolute;right:.5rem;top:50%;transform:translateY(-50%);width:44px;height:44px;display:grid;place-items:center}.chevron::after{content:"";width:10px;height:10px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg)}details[open]>summary>.chevron::after{transform:rotate(45deg)}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}.requirement>summary h2,.case>summary h4{display:inline-block;vertical-align:middle;margin:0 .75rem .5rem 0;max-width:100%}.requirement-content{padding:0 1rem 1rem}.scenario-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr));gap:1rem;align-items:start}.scenario{padding:1rem}.scenario header h3{margin:0 0 .5rem}.cases{display:grid;gap:.75rem;margin-top:1rem}.case{padding:0}.case-details{padding:0 1rem 1rem}.node-title{display:block;font-size:1em;font-weight:750}.node-id{display:block;font:normal .75rem ui-monospace,monospace;margin-top:.4rem;color:#4b5565}.node-link{color:inherit;text-decoration:none}.node-link:hover .node-title{text-decoration:underline}.node-link:focus-visible,summary:focus-visible{outline:3px solid #2563eb;outline-offset:3px}.badge{display:inline-flex;align-items:center;gap:.3rem;border:1px solid currentColor;border-radius:1rem;padding:.15rem .6rem;font-size:.8rem;white-space:nowrap}.badge[data-severity=success]{color:#16643d;background:#e4f3e9}.badge[data-severity=warning]{color:#754407;background:#fff0c5}.badge[data-severity=error]{color:#a12118;background:#fce5e2}.evidence-list{padding-left:1.25rem}.evidence-list>li{margin:.75rem 0}.evidence-name{margin:.25rem 0}.technical-details>summary{cursor:pointer;min-height:44px;padding:.5rem 0}.required-layers{display:block;font-size:.8rem;margin-top:.5rem}summary a{display:inline-block;min-height:44px} @media(max-width:40rem){body{padding:.75rem}.scenario-grid{grid-template-columns:minmax(0,1fr)}.requirement-content,.scenario{padding:.75rem}.requirement>summary,.case>summary{padding:.75rem 4rem .75rem .75rem}.metrics{grid-template-columns:repeat(auto-fit,minmax(min(100%,11rem),1fr))}h1{font-size:1.65rem}}
 </style></head>
 <body><main><h1>Moura Requirement Coverage</h1><p>Coverage of declared traceability and evidence. Moura does not prove that a test semantically verifies the specification it declares.</p>
 <div class="metrics">${cards}</div><h2>Requirement Map</h2><p>Expand a Requirement or Case to inspect exact verification and Evidence.</p><div class="requirement-map">${hierarchy}</div>
-<h2>Pair statuses</h2><ul>${statusCounts}</ul><h2>Per-layer coverage</h2><table><thead><tr><th>Layer</th><th>PASS / required</th></tr></thead><tbody>${layers}</tbody></table><h2>Reverse Traceability</h2>${traceabilityHtml}<h2>Evidence Issues</h2>${issueHtml}</main></body></html>\n`);
+<h2>Pair statuses</h2><ul>${statusCounts}</ul><h2>Per-layer coverage</h2><table><thead><tr><th>Layer</th><th>PASS / required</th></tr></thead><tbody>${layers}</tbody></table><h2>Reverse Traceability</h2>${traceabilityHtml}<h2>Evidence Issues</h2>${issueHtml}</main><script>${requirementMapScript}</script></body></html>\n`);
 }
 
 function count(value: CoverageCount): string {
@@ -339,7 +339,7 @@ function nodeBadge(node: CoverageNodeStatus): string {
 function pairBadge(status: string, severity: string): string {
   const symbol =
     severity === "success" ? "✓" : severity === "warning" ? "!" : "×";
-  return `<span class="status badge ${status.toLowerCase()}" data-severity="${severity}"><span aria-hidden="true">${symbol}</span> <span>${renderText(status)}</span></span> <span class="severity ${severity}">${renderText(severity)}</span>`;
+  return `<span class="status badge ${status.toLowerCase()}" data-severity="${severity}"><span aria-hidden="true">${symbol}</span> <span>${renderText(status)}</span></span><span class="sr-only"> severity: ${renderText(severity)}</span>`;
 }
 
 /** Attach titles only from validated views, using canonical identity and source. */
@@ -359,4 +359,27 @@ export function withRequirementMapTranslation(
         : match;
     },
   );
+}
+
+/** Native details provides Enter/Space handling; keep explicit expanded state in sync. */
+export const requirementMapScript = `(() => {
+  document.querySelectorAll('details.map-node').forEach(details => {
+    const summary = details.querySelector('summary');
+    const update = () => summary.setAttribute('aria-expanded', String(details.open));
+    update();
+    details.addEventListener('toggle', update);
+    summary.querySelectorAll('a').forEach(link => {
+      link.addEventListener('click', event => event.stopPropagation());
+    });
+  });
+})();`;
+
+function renderEvidence(item: Evidence): string {
+  const status = {
+    passed: "PASS",
+    failed: "FAIL",
+    broken: "BROKEN",
+    skipped: "SKIPPED",
+  }[item.status];
+  return `<li>${item.name ? `<p class="evidence-name" data-evidence-name>${renderText(item.name)}</p>` : ""}<code>${renderText(item.layer)}</code> — ${pairBadge(status, verificationSeverity(status as VerificationCheckResult["status"]))}${item.source === undefined ? "" : `<details class="technical-details"><summary>Technical details</summary><code>${renderText(item.source)}</code></details>`}</li>`;
 }

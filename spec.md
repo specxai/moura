@@ -324,7 +324,14 @@ locations and be more prominent than supplementary canonical IDs. Source links
 shall reuse existing anchors. PASS Requirements shall initially be collapsed;
 Requirements with verification gaps shall initially be expanded. Case details
 shall retain exact required-layer pair statuses and matching Evidence, including
-its layer, execution status, and source. Titles, IDs, layers, and Evidence source
+its available test name, layer, and localized execution status. Source filenames
+shall remain escaped in collapsed Technical details, rather than normal Evidence
+content. No test name or Allure URL shall be inferred when unavailable.
+Requirement and Case headers shall share a right-aligned chevron with a 44×44px
+area, native keyboard expansion, and synchronized aria-expanded. Source links
+shall navigate independently of expansion, without nested buttons. Severity shall
+remain available to assistive technology without duplicating the visible status.
+Titles, IDs, layers, test names, and Evidence source
 text shall be HTML escaped. Layout shall remain usable at 320px without page
 horizontal scrolling, with keyboard-operable expansion and readable tap targets.
 Summary, per-layer coverage, Reverse Traceability and Evidence Issues, including

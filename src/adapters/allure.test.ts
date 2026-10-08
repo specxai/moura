@@ -36,6 +36,24 @@ function hierarchyLabels(caseId = "REQ-001/SCN-001/CASE-001") {
 const layerLabel = { name: "moura_layer", value: "unit" };
 
 describe("Allure evidence conversion", () => {
+  it.each(["Reject <unsafe> & input", undefined, "", "   ", 42])(
+    "retains only available test-name metadata (%s) without changing authoritative Evidence",
+    (name) => {
+      const input = result("passed", [...hierarchyLabels(), layerLabel]);
+      const baseline = convertAllureResult(input, "uuid-result.json");
+      const converted = convertAllureResult(
+        { ...input, name },
+        "uuid-result.json",
+      );
+      const { name: retained, ...authoritative } = converted.evidence[0]!;
+      expect(authoritative).toEqual(baseline.evidence[0]);
+      expect(converted.issues).toEqual(baseline.issues);
+      expect(retained).toBe(
+        typeof name === "string" && name.trim() ? name : undefined,
+      );
+    },
+  );
+
   it.each(["passed", "failed", "broken", "skipped"] as const)(
     "maps %s without an Allure runtime dependency",
     (status) => {

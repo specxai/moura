@@ -172,6 +172,9 @@ describe("quality site assembly", () => {
         'data-map-title="REQ-001" data-map-source="req.md" data-ja="読む">Read</span>',
       );
       expect(report).toContain(
+        'data-map-title="REQ-001/SCN-001" data-map-source="spec.md" data-ja="入力">Input</span>',
+      );
+      expect(report).toContain(
         'data-map-title="REQ-001/SCN-001/CASE-001" data-map-source="spec.md" data-ja="読む">Read</span>',
       );
       expect(report).toContain(
@@ -509,7 +512,8 @@ async function japaneseFixture() {
     requirements:
       GENERATED_VIEW_NOTICE + inputs["req.md"].replaceAll("Read", "読む"),
     specifications:
-      GENERATED_VIEW_NOTICE + inputs["spec.md"].replaceAll("Read", "読む"),
+      GENERATED_VIEW_NOTICE +
+      inputs["spec.md"].replaceAll("Read", "読む").replaceAll("Input", "入力"),
   };
   const access: JapaneseArtifactAccess = {
     json: async (path) => {

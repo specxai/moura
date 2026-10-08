@@ -41,4 +41,6 @@ export interface Evidence {
   readonly layer: VerificationLayer;
   readonly status: "passed" | "failed" | "broken" | "skipped";
   readonly source?: string;
+  /** Optional presentation metadata; never used for matching or status. */
+  readonly name?: string;
 }

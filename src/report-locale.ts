@@ -36,6 +36,11 @@ const japanese: Readonly<Record<string, string>> = {
     "要求やケースを展開して検証とエビデンスの詳細を確認できます。",
   "Required verification layers": "必須検証レイヤー",
   Evidence: "エビデンス",
+  "Technical details": "技術詳細",
+  MISSING: "不足",
+  UNIMPLEMENTED: "未実装",
+  SKIPPED: "スキップ",
+  BROKEN: "実行エラー",
   "No Evidence available": "エビデンスなし",
   Requirements: "要求",
   Scenarios: "シナリオ",
@@ -101,7 +106,7 @@ export const reportLocaleScript = `(() => {
 
 export function withReportLocale(html: string): string {
   const localized = html.replace(
-    /<(h[1-4]|p|strong|span|th|a|title)([^>]*)>([^<]+)<\/(h[1-4]|p|strong|span|th|a|title)>/gu,
+    /<(h[1-4]|p|strong|span|th|a|title|summary)([^>]*)>([^<]+)<\/(h[1-4]|p|strong|span|th|a|title|summary)>/gu,
     (
       match: string,
       tag: string,
@@ -111,6 +116,7 @@ export function withReportLocale(html: string): string {
     ) => {
       if (
         attributes.includes("data-map-title=") ||
+        attributes.includes("data-evidence-name") ||
         attributes.includes("data-ja=")
       )
         return match;

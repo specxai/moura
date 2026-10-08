@@ -14,6 +14,7 @@ import {
 import type { Evidence } from "./model.js";
 import { reportLocaleScript } from "./report-locale.js";
 import {
+  requirementMapScript,
   renderCoverageReport,
   reportProjectDirectory,
   requirementSourceFilename,
@@ -66,6 +67,7 @@ const evidence: Evidence[] = [
     layer: "unit",
     status: "passed",
     source: "allure-results/<unit>&.json",
+    name: 'Reject <unsafe> & "input"',
   },
   {
     covers: ["REQ-001/SCN-001/CASE-001"],
@@ -117,7 +119,7 @@ describe("Requirement Map", () => {
       map.indexOf('data-map-title="REQ-002"'),
     );
     expect(map).toContain(
-      'class="requirement map-node" data-severity="success"><summary>',
+      'class="requirement map-node" data-severity="success"><summary aria-expanded="false">',
     );
     expect(map).toContain(
       'class="requirement map-node" data-severity="warning" open>',
@@ -134,9 +136,9 @@ describe("Requirement Map", () => {
     );
     expect(html).toContain("allure-results/&lt;unit&gt;&amp;.json");
     expect(html).not.toContain("allure-results/<unit>");
-    expect(html).toContain("<span>passed</span>");
-    expect(html).toContain("<span>SKIPPED</span>");
-    expect(html).toContain("<span>UNIMPLEMENTED</span>");
+    expect(html).toContain('<span data-ja="合格">PASS</span>');
+    expect(html).toContain('<span data-ja="スキップ">SKIPPED</span>');
+    expect(html).toContain('<span data-ja="未実装">UNIMPLEMENTED</span>');
     expect(html).toContain(
       "Required verification layers</span>: unit, integration",
     );
@@ -164,6 +166,65 @@ describe("Requirement Map", () => {
     expect(html).toContain('<span aria-hidden="true">✓</span>');
     expect(html).toContain('<span aria-hidden="true">!</span>');
     expect(html).toContain('<span data-ja="未完了">INCOMPLETE</span>');
+  });
+
+  it("keeps filenames in technical details and shows only available Evidence metadata", () => {
+    const html = render();
+    expect(html).toContain("Reject &lt;unsafe&gt; &amp; &quot;input&quot;</p>");
+    expect(html).toContain("<code>integration</code> — ");
+    expect(html).toContain(
+      '<details class="technical-details"><summary data-ja="技術詳細">Technical details</summary><code>allure-results/&lt;unit&gt;&amp;.json</code></details>',
+    );
+    expect(html).not.toContain('class="severity success"');
+    expect(html).toContain('class="sr-only"> severity: success</span>');
+    expect(html).not.toContain('href="../allure/');
+    expect(html).toContain("width:44px;height:44px");
+    expect(html).toContain("summary>.chevron::after{transform:rotate(45deg)}");
+  });
+
+  it("synchronizes aria-expanded on native Requirement and Case toggles without intercepting source navigation", () => {
+    const links = [
+      {
+        addEventListener: (
+          event: string,
+          handler: (event: { stopPropagation: () => void }) => void,
+        ) => {
+          expect(event).toBe("click");
+          let stopped = false;
+          handler({
+            stopPropagation: () => {
+              stopped = true;
+            },
+          });
+          expect(stopped).toBe(true);
+        },
+      },
+    ];
+    for (const initial of [false, true]) {
+      let expanded = "";
+      let toggle = () => {};
+      const details = {
+        open: initial,
+        querySelector: () => ({
+          setAttribute: (key: string, value: string) => {
+            expect(key).toBe("aria-expanded");
+            expanded = value;
+          },
+          querySelectorAll: () => links,
+        }),
+        addEventListener: (event: string, handler: () => void) => {
+          expect(event).toBe("toggle");
+          toggle = handler;
+        },
+      };
+      runInNewContext(requirementMapScript, {
+        document: { querySelectorAll: () => [details] },
+      });
+      expect(expanded).toBe(String(initial));
+      details.open = !initial;
+      toggle();
+      expect(expanded).toBe(String(!initial));
+    }
   });
 
   statusIt.each(["passed", "skipped", "failed", "broken", "missing"] as const)(
@@ -375,6 +436,46 @@ describe("Requirement Map", () => {
       expect(html).toContain(
         ">Validate &lt;structure&gt; &amp; &quot;titles&quot;</span>",
       );
+    },
+  );
+
+  integrationIt(
+    "renders available Allure test names while retaining source files only in collapsed diagnostics",
+    async () => {
+      const root = await mkdtemp(join(tmpdir(), "moura-map-evidence-"));
+      try {
+        await mkdir(join(root, "allure-results"));
+        await writeFile(join(root, "moura.yaml"), yaml);
+        await writeFile(join(root, "req.md"), req);
+        await writeFile(join(root, "spec.md"), spec);
+        const filename = "5563340f-116d-4fed-b6fb-880147d2d62-result.json";
+        await writeFile(
+          join(root, "allure-results", filename),
+          JSON.stringify({
+            name: "Reject <unavailable> input",
+            status: "passed",
+            labels: [
+              { name: "moura_requirement", value: "REQ-001" },
+              { name: "moura_scenario", value: "SCN-001" },
+              { name: "moura_case", value: "CASE-001" },
+              { name: "moura_layer", value: "integration" },
+            ],
+          }),
+        );
+        const result = await reportProjectDirectory(root);
+        expect(result.exitCode).toBe(0);
+        const html = await readFile(result.outputPath!, "utf8");
+        expect(html).toContain(
+          "data-evidence-name>Reject &lt;unavailable&gt; input</p>",
+        );
+        expect(html).toContain(
+          `<summary data-ja="技術詳細">Technical details</summary><code>${filename}</code></details>`,
+        );
+        expect(html).not.toContain(`<span>${filename}</span>`);
+        expect(html).toContain("<code>integration</code> — ");
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
     },
   );
 

@@ -244,6 +244,9 @@ export function convertAllureResult(
     covers: [...new Set(canonicalCases)],
     layer: layerValues[0]!,
     status: status as Evidence["status"],
+    ...(typeof input.name === "string" && input.name.trim()
+      ? { name: input.name }
+      : {}),
     ...(source === undefined ? {} : { source }),
   };
   return { evidence: [evidence], issues: [] };

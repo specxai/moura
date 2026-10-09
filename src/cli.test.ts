@@ -347,7 +347,7 @@ describe("Report v2 CLI options", () => {
     ["--unknown"],
     ["a", "b", "--output", "out"],
     ["--japanese-views"],
-  ])("rejects invalid report flags %j", async (...args) => {
+  ])("rejects invalid report flags %# %j", async (...args) => {
     const result = await run(["report", ...args], process.cwd());
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("Usage: moura report");

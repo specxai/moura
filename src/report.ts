@@ -102,14 +102,21 @@ export async function reportProjectDirectory(
         const translatedPath = resolve(root, path);
         translationInputs.push(translatedPath);
         const translated = await readFile(translatedPath, "utf8");
-        const role = evaluation.requirementSources.has(source)
-          ? "requirements"
-          : "specifications";
-        const problems = validateJapaneseView(
-          sources.get(source)!,
-          translated,
-          role,
-          evaluation.manifest,
+        const roles = [
+          ...(evaluation.requirementSources.has(source)
+            ? ["requirements" as const]
+            : []),
+          ...(evaluation.specificationSources.has(source)
+            ? ["specifications" as const]
+            : []),
+        ];
+        const problems = roles.flatMap((role) =>
+          validateJapaneseView(
+            sources.get(source)!,
+            translated,
+            role,
+            evaluation.manifest,
+          ),
         );
         if (problems.length)
           throw new Error(
@@ -131,17 +138,33 @@ export async function reportProjectDirectory(
     const files = new Map<string, string>();
     for (const [source, markdown] of sources) {
       const translated = translations.get(source);
-      const locate = evaluation.requirementSources.has(source)
-        ? locateRequirementMarkdown
-        : locateSpecificationMarkdown;
       const japaneseLocations =
         translated === undefined
           ? undefined
-          : locate(translated, source, evaluation.manifest);
-      if (japaneseLocations)
-        for (const [id, location] of japaneseLocations)
-          if (evaluation.requirementSources.has(source) || id.includes("/"))
-            translatedLocations.set(id, location);
+          : new Map<string, RequirementSourceLocation>();
+      if (translated !== undefined && japaneseLocations) {
+        for (const [enabled, locate] of [
+          [
+            evaluation.specificationSources.has(source),
+            locateSpecificationMarkdown,
+          ],
+          [
+            evaluation.requirementSources.has(source),
+            locateRequirementMarkdown,
+          ],
+        ] as const) {
+          if (!enabled) continue;
+          for (const [id, location] of locate(
+            translated,
+            source,
+            evaluation.manifest,
+          )) {
+            japaneseLocations.set(id, location);
+            if (locate === locateRequirementMarkdown || id.includes("/"))
+              translatedLocations.set(id, location);
+          }
+        }
+      }
       files.set(
         `moura/sources/${requirementSourceFilename(source)}`,
         renderRequirementSource(

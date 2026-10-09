@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+  chmod,
   lstat,
   mkdir,
   mkdtemp,
@@ -67,7 +68,6 @@ async function inventory(path: string, prefix = ""): Promise<string[]> {
 async function inspectOutput(output: string, root: string): Promise<boolean> {
   if (!(await stat(output))) return false;
   const files = await inventory(output);
-  if (files.length === 0) return true;
   if (!files.includes(marker))
     throw new Error(
       "Output is not an owned Moura v2 report. Choose a new --output directory or move the old report aside; no existing files were removed.",
@@ -149,7 +149,11 @@ export async function writeReportOutput(
   const original = await stat(output);
   await mkdir(dirname(output), { recursive: true });
   await checkParents(dirname(output));
-  const stage = await mkdtemp(resolve(dirname(output), ".moura-stage-"));
+  const stageContainer = await mkdtemp(
+    resolve(dirname(output), ".moura-stage-"),
+  );
+  const stage = resolve(stageContainer, "report");
+  await mkdir(stage, { mode: 0o700 });
   let backup: string | undefined;
   let published = false;
   try {
@@ -174,6 +178,30 @@ export async function writeReportOutput(
     const current = await stat(output);
     if (original?.ino !== current?.ino || original?.dev !== current?.dev)
       throw new Error("Output identity changed while generating report");
+    // Final permissions are prepared inside the private 0700 container.
+    // Publishing only its child avoids exposing staging contents.
+    if (process.platform !== "win32") {
+      const directoryMode = original
+        ? original.mode & 0o777
+        : 0o777 & ~process.umask();
+      const paths = [...(await inventory(stage)), "moura/sources", "moura", ""];
+      for (const path of paths) {
+        const staged = resolve(stage, path);
+        const entry = await stat(staged);
+        if (!entry) continue;
+        const previous = existed
+          ? await stat(resolve(output, path))
+          : undefined;
+        const mode = previous
+          ? previous.mode & 0o777
+          : entry.isDirectory()
+            ? directoryMode
+            : original
+              ? directoryMode & 0o666
+              : 0o666 & ~process.umask();
+        await chmod(staged, mode);
+      }
+    }
     if (existed) {
       backup = await mkdtemp(resolve(dirname(output), ".moura-backup-"));
       await rmdir(backup);
@@ -194,6 +222,7 @@ export async function writeReportOutput(
     return output;
   } finally {
     if (!published) await removeGeneratedDirectory(stage);
+    await rmdir(stageContainer);
   }
 }
 

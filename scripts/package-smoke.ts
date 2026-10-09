@@ -8,6 +8,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import console from "node:console";
+import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -25,6 +26,9 @@ const packageSmokeEvidence = {
   name: "supports the documented contract through the installed package boundary",
   status: "passed",
   labels: [
+    { name: "moura_requirement", value: "REQ-010" },
+    { name: "moura_scenario", value: "SCN-001" },
+    { name: "moura_case", value: "CASE-001" },
     { name: "moura_traceability", value: "managed" },
     { name: "moura_requirement", value: "REQ-006" },
     { name: "moura_scenario", value: "SCN-001" },
@@ -130,6 +134,51 @@ export async function runPackageSmoke(): Promise<void> {
     const report = await readFile(join(fixture, "moura-report", "index.html"));
     if (report.byteLength === 0)
       throw new Error("Installed package generated an empty coverage report");
+    assert.match(report.toString(), /Overall Status/u);
+    const example = join(temporary, "vitest-minimal");
+    await cp(join(root, "examples/vitest-minimal"), example, {
+      recursive: true,
+    });
+    await cp(join(fixture, "allure-results"), join(example, "allure-results"), {
+      recursive: true,
+    });
+    // A single required unit pair, using external-tool-style runtime Evidence.
+    await rm(join(example, "allure-results/integration-result.json"));
+    run(binary, ["validate", example], packageDirectory);
+    run(binary, ["report", example], packageDirectory);
+    const overview = await readFile(
+      join(example, "moura-report/index.html"),
+      "utf8",
+    );
+    assert.match(overview, /data-status="PASS"/u);
+    assert.match(overview, /href="\.\/moura\/index\.html"/u);
+    assert.doesNotMatch(overview, /href="\.\/(?:allure|coverage)\/"/u);
+    const map = await readFile(
+      join(example, "moura-report/moura/index.html"),
+      "utf8",
+    );
+    assert.match(map, /REQ-001\/SCN-001\/CASE-001/u);
+    for (const [, path] of map.matchAll(
+      /href="\.\/sources\/([^"#]+)(?:#[^"]*)?"/gu,
+    ))
+      await access(join(example, "moura-report/moura/sources", path!));
+    run(
+      binary,
+      ["report", example, "--output", "reports/quality"],
+      packageDirectory,
+    );
+    await access(join(example, "reports/quality/index.html"));
+    const absolute = join(temporary, "absolute-report");
+    run(binary, ["report", example, "--output", absolute], packageDirectory);
+    await access(join(absolute, "moura/index.html"));
+    // The packed package deliberately excludes all repository scripts and dev tools.
+    const installedRoot = join(
+      packageDirectory,
+      "node_modules",
+      "@specxai/moura",
+    );
+    await assert.rejects(access(join(installedRoot, "scripts")));
+    await assert.rejects(access(join(packageDirectory, "node_modules/vitest")));
     await mkdir(join(root, "allure-results"), { recursive: true });
     await writeFile(
       evidencePath,

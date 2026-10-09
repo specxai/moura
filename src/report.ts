@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, realpath, rm, writeFile } from "node:fs/promises";
+import { readFile, realpath } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { EvidenceAdapterIssue } from "./adapters/allure.js";
@@ -26,21 +26,34 @@ import {
 import { canonicalId } from "./id.js";
 import type { MouraManifest } from "./manifest.js";
 import {
+  locateRequirementMarkdown,
   locateSpecificationMarkdown,
   type RequirementSourceLocation,
 } from "./markdown.js";
 import { withReportLocale } from "./report-locale.js";
 import type { Evidence, VerificationLayer } from "./model.js";
+import { qualityOverviewFromEvaluation } from "./quality-overview.js";
+import { renderOverview } from "./overview-report.js";
+import { writeReportOutput } from "./report-output.js";
+import { validateJapaneseView } from "./japanese-view.js";
+
+export interface ReportCommandOptions extends CheckCommandOptions {
+  readonly output?: string;
+  /** Project-relative JSON mapping canonical source paths to Japanese view paths. */
+  readonly japaneseViews?: string;
+}
 
 export interface ReportCommandOutput {
   readonly exitCode: 0 | 1;
+  /** Requirement Map entry point, retained for API consumers. */
   readonly outputPath?: string;
+  readonly overviewPath?: string;
   readonly errors: readonly string[];
 }
 
 export async function reportProjectDirectory(
   directory: string,
-  options: CheckCommandOptions = {},
+  options: ReportCommandOptions = {},
 ): Promise<ReportCommandOutput> {
   const evaluation = await evaluateProjectDirectory(directory, options);
   if (evaluation.kind === "invalid-project")
@@ -54,29 +67,112 @@ export async function reportProjectDirectory(
     ))
       specificationLocations.set(id, location);
   let outputPath: string;
+  let overviewPath: string;
   try {
-    outputPath = await writeReportFile(
-      directory,
-      renderCoverageReport(
-        evaluation.manifest,
-        evaluation.check,
-        evaluation.adapterIssues,
-        evaluation.traceabilityDiagnostics,
-        evaluation.requirementLocations,
-        specificationLocations,
-        evaluation.evidence,
-      ),
-      new Map([
-        ...evaluation.requirementSources,
-        ...evaluation.specificationSources,
-      ]),
-      new Map(
-        [
-          ...specificationLocations.values(),
-          ...evaluation.requirementLocations.values(),
-        ].map((location, index) => [String(index), location]),
-      ),
+    const root = await realpath(resolve(directory));
+    const sources = new Map([
+      ...evaluation.requirementSources,
+      ...evaluation.specificationSources,
+    ]);
+    const locations = new Map(
+      [
+        ...specificationLocations.values(),
+        ...evaluation.requirementLocations.values(),
+      ].map((location, index) => [String(index), location]),
     );
+    const translations = new Map<string, string>();
+    const translationInputs: string[] = [];
+    if (options.japaneseViews) {
+      const configPath = resolve(root, options.japaneseViews);
+      translationInputs.push(configPath);
+      const mapping: unknown = JSON.parse(await readFile(configPath, "utf8"));
+      if (
+        typeof mapping !== "object" ||
+        mapping === null ||
+        Array.isArray(mapping)
+      )
+        throw new Error(
+          "Japanese views must be a JSON object mapping canonical source paths to translated file paths",
+        );
+      for (const [source, path] of Object.entries(mapping)) {
+        if (!sources.has(source) || typeof path !== "string")
+          throw new Error(
+            `Unknown Japanese view source or invalid path: ${source}`,
+          );
+        const translatedPath = resolve(root, path);
+        translationInputs.push(translatedPath);
+        const translated = await readFile(translatedPath, "utf8");
+        const role = evaluation.requirementSources.has(source)
+          ? "requirements"
+          : "specifications";
+        const problems = validateJapaneseView(
+          sources.get(source)!,
+          translated,
+          role,
+          evaluation.manifest,
+        );
+        if (problems.length)
+          throw new Error(
+            `Invalid Japanese view ${source}: ${problems.join("; ")}`,
+          );
+        translations.set(source, translated);
+      }
+    }
+    let map = renderCoverageReport(
+      evaluation.manifest,
+      evaluation.check,
+      evaluation.adapterIssues,
+      evaluation.traceabilityDiagnostics,
+      evaluation.requirementLocations,
+      specificationLocations,
+      evaluation.evidence,
+    );
+    const translatedLocations = new Map<string, RequirementSourceLocation>();
+    const files = new Map<string, string>();
+    for (const [source, markdown] of sources) {
+      const translated = translations.get(source);
+      const locate = evaluation.requirementSources.has(source)
+        ? locateRequirementMarkdown
+        : locateSpecificationMarkdown;
+      const japaneseLocations =
+        translated === undefined
+          ? undefined
+          : locate(translated, source, evaluation.manifest);
+      if (japaneseLocations)
+        for (const [id, location] of japaneseLocations)
+          if (evaluation.requirementSources.has(source) || id.includes("/"))
+            translatedLocations.set(id, location);
+      files.set(
+        `moura/sources/${requirementSourceFilename(source)}`,
+        renderRequirementSource(
+          source,
+          markdown,
+          locations,
+          translated === undefined
+            ? undefined
+            : { markdown: translated, locations: japaneseLocations! },
+        ),
+      );
+    }
+    if (translations.size)
+      map = withRequirementMapTranslation(map, translatedLocations);
+    map = map.replace(
+      "<main>",
+      '<main><a href="../index.html" data-ja="← 品質概要">← Quality Overview</a>',
+    );
+    files.set("moura/index.html", map);
+    files.set(
+      "index.html",
+      renderOverview(await qualityOverviewFromEvaluation(root, evaluation)),
+    );
+    const output = await writeReportOutput(
+      root,
+      options.output ?? "moura-report",
+      ["moura.yaml", ...sources.keys(), ...translationInputs],
+      files,
+    );
+    overviewPath = resolve(output, "index.html");
+    outputPath = resolve(output, "moura/index.html");
   } catch (error) {
     return {
       exitCode: 1,
@@ -97,6 +193,7 @@ export async function reportProjectDirectory(
         ? 0
         : 1,
     outputPath,
+    overviewPath,
     errors: [
       ...evaluation.adapterIssues.map(formatEvidenceAdapterIssue),
       ...semanticErrors,
@@ -105,30 +202,6 @@ export async function reportProjectDirectory(
         .map(formatTraceabilityDiagnostic),
     ],
   };
-}
-
-async function writeReportFile(
-  directory: string,
-  contents: string,
-  requirementSources: ReadonlyMap<string, string>,
-  requirementLocations: ReadonlyMap<string, RequirementSourceLocation>,
-): Promise<string> {
-  const projectRoot = await realpath(resolve(directory));
-  const outputDirectory = resolve(projectRoot, "moura-report");
-  await rm(outputDirectory, { recursive: true, force: true });
-  await mkdir(outputDirectory);
-  const sourceDirectory = resolve(outputDirectory, "sources");
-  await mkdir(sourceDirectory);
-  for (const [source, markdown] of requirementSources) {
-    await writeFile(
-      resolve(sourceDirectory, requirementSourceFilename(source)),
-      renderRequirementSource(source, markdown, requirementLocations),
-      "utf8",
-    );
-  }
-  const outputPath = resolve(outputDirectory, "index.html");
-  await writeFile(outputPath, contents, "utf8");
-  return outputPath;
 }
 
 function errorMessage(error: unknown): string {

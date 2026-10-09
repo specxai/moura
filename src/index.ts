@@ -18,3 +18,7 @@ export {
 export * from "./project.js";
 export * from "./validation.js";
 export * from "./validator.js";
+
+export * from "./quality-overview.js";
+export * from "./overview-report.js";
+export { validateJapaneseView, type DocumentRole } from "./japanese-view.js";

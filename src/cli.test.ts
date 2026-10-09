@@ -247,7 +247,7 @@ describe("CLI", () => {
       expect(result.status, result.stderr).toBe(0);
       expect(result.stdout).toContain("Requirement coverage report");
       expect(
-        await readFile(join(project, "moura-report/index.html"), "utf8"),
+        await readFile(join(project, "moura-report/moura/index.html"), "utf8"),
       ).toContain("REQ-001/SCN-001/CASE-001");
     } finally {
       await rm(directory, { recursive: true });
@@ -264,7 +264,10 @@ describe("CLI", () => {
       expect(result.stderr).toContain("unknown-evidence-id");
       expect(result.stderr).toContain("REQ-999/SCN-001/CASE-001 [unit]");
       expect(
-        await readFile(join(directory, "moura-report/index.html"), "utf8"),
+        await readFile(
+          join(directory, "moura-report/moura/index.html"),
+          "utf8",
+        ),
       ).toContain("unknown-evidence-id");
     } finally {
       await rm(directory, { recursive: true });
@@ -282,5 +285,71 @@ describe("CLI", () => {
     const packageJson = JSON.parse(await readFile("package.json", "utf8"));
     expect(version.status, version.stderr).toBe(0);
     expect(version.stdout.trim()).toBe(`moura ${packageJson.version}`);
+  });
+});
+
+const reportIt = mouraEvidenceTest(
+  vitestIt,
+  ["REQ-010/SCN-001/CASE-001"],
+  "integration",
+);
+describe("Report v2 CLI options", () => {
+  reportIt.each(["relative", "absolute"])(
+    "resolves %s --output against the explicit project",
+    async (mode) => {
+      const parent = await mkdtemp(join(tmpdir(), "moura-cli-output-"));
+      try {
+        const project = join(parent, "project");
+        await writeValidProject(project);
+        await writeEvidence(project);
+        const output =
+          mode === "relative"
+            ? "reports/quality"
+            : join(parent, "external-report");
+        const result = await run(
+          ["report", "project", "--output", output],
+          parent,
+        );
+        expect(result.status, result.stderr).toBe(0);
+        const destination =
+          mode === "relative" ? join(project, output) : output;
+        expect(
+          await readFile(join(destination, "index.html"), "utf8"),
+        ).toContain("Overall Status");
+        expect(
+          await readFile(join(destination, "moura/index.html"), "utf8"),
+        ).toContain("REQ-001/SCN-001/CASE-001");
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    },
+  );
+  reportIt(
+    "retains moura report . and makes its top entry Overview",
+    async () => {
+      const project = await mkdtemp(join(tmpdir(), "moura-cli-default-"));
+      try {
+        await writeValidProject(project);
+        await writeEvidence(project);
+        expect((await run(["report", "."], project)).status).toBe(0);
+        expect(
+          await readFile(join(project, "moura-report/index.html"), "utf8"),
+        ).toContain('href="./moura/index.html"');
+      } finally {
+        await rm(project, { recursive: true, force: true });
+      }
+    },
+  );
+  reportIt.each([
+    ["--output"],
+    ["--output", "--unknown"],
+    ["--output", "one", "--output", "two"],
+    ["--unknown"],
+    ["a", "b", "--output", "out"],
+    ["--japanese-views"],
+  ])("rejects invalid report flags %j", async (...args) => {
+    const result = await run(["report", ...args], process.cwd());
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Usage: moura report");
   });
 });

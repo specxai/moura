@@ -123,3 +123,33 @@ and publish under their existing gates; their own failures still fail CI.
 Normal CI needs only read-only GitHub artifact/source access and never calls
 OpenAI or receives `OPENAI_API_KEY`. The producer failure and debug-artifact
 behavior are unchanged.
+
+## 外部プロジェクト向け Report CLI v2
+
+Node.js 24 以降で、インストール済みの npm パッケージだけから実行できます。
+
+```sh
+moura report .
+moura report ./my-project --output reports/quality
+moura report ./my-project --output /tmp/my-project-quality
+```
+
+相対的な出力先はプロジェクトディレクトリが基準です。トップの
+`moura-report/index.html` は Quality Overview になり、要求マップは
+`moura-report/moura/index.html`、REQ/Spec の閲覧ページは
+`moura-report/moura/sources/` に配置されます。
+
+Allure results や coverage summary がなくても生成でき、不足は概要と診断に
+表示されます。Allure/coverage の HTML は生成・コピーせず、未配置のレポートへ
+リンクしません。`?lang=ja` / `?lang=en` は引き続き利用できます。
+
+日本語タイトルは `--japanese-views <json>` で明示的に指定し、共通の整合性検証を
+通過した翻訳のみ使用します。JSON は正本ソースのパスをキー、日本語 Markdown
+のパスを値とするオブジェクトです。パスはプロジェクト基準で解決されます。
+翻訳のないタイトルは英語に戻ります。API キーや AI 翻訳は不要です。
+
+安全な更新のため `.moura-report.json` を保持してください。ルート、入力との重複、
+シンボリックリンク、ハードリンク、未識別・編集済みの出力は拒否します。
+CLI v1 の出力は自動削除せず、別の出力先を選ぶか手動で移動してから再生成します。
+詳細は [英語の CLI ガイド](../../README.md#cli) と
+[変更履歴](../../CHANGELOG.md) を参照してください。

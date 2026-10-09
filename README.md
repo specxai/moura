@@ -148,10 +148,76 @@ moura report .
 ```sh
 moura validate [directory] # validate moura.yaml and its configured Markdown sources
 moura check [directory]    # check existing Allure evidence
-moura report [directory]   # write <project>/moura-report/index.html
+moura report [directory]   # write Quality Overview + Requirement Map
+moura report [directory] --output <directory>
 ```
 
 All commands use the current working directory by default, or a supplied relative or absolute project directory. `moura check` first validates the project, then consumes existing evidence from `<project>/allure-results/`; it does not run tests or generate evidence. Every Case × verification-layer point must have success or warning severity, with no adapter or semantic evidence issues, for the check command to succeed. `PASS` is success; `SKIPPED` and `UNIMPLEMENTED` are warnings; `FAIL`, `BROKEN`, and `MISSING` are errors. `moura report` consumes the same structured result and produces deterministic static HTML without running tests.
+
+Report CLI v2 makes `moura-report/index.html` the **Quality Overview**. Open its
+Requirement Coverage link to reach the Requirement Map at `moura/index.html`.
+The default project-relative output layout is:
+
+```text
+moura-report/
+├── index.html                 # Quality Overview
+├── .moura-report.json         # ownership/content metadata; keep this file
+└── moura/
+    ├── index.html             # Requirement Map / Coverage
+    └── sources/               # escaped REQ/Spec HTML snapshots
+```
+
+```sh
+moura report .
+moura report ./my-project --output reports/quality
+moura report ./my-project --output /tmp/my-project-quality
+```
+
+`--output` resolves relative to the project, not the caller's working directory.
+Existing callers of `reportProjectDirectory()` keep `outputPath` for the Map;
+`overviewPath` identifies the new top page. Rendering APIs remain available.
+No repository scripts, development dependencies, hosting URL, or API key are
+required by the installed package. Node.js **24 or later** is required.
+
+Overview uses the same authoritative evaluation as Moura's Quality Site. It
+shows requirement coverage and missing Evidence, plus optional counts from
+`allure-results/*-result.json` and lines from `coverage/coverage-summary.json`.
+Absent or invalid optional metrics are unavailable. Missing Evidence inputs
+still produce both pages with diagnostics; existing report exit-code behavior
+is preserved. An artifact's creation does not mean verification passed.
+Moura does not generate or copy Allure/coverage HTML reports in v2, and the
+portable report emits no links to those unbundled artifacts.
+
+Use `?lang=ja` or `?lang=en` on any generated page. Titles use canonical English
+unless an explicitly configured Japanese view passes the shared integrity
+validator. To supply local views, create a JSON object such as:
+
+```json
+{
+  "requirements.md": "docs/ja/requirements.md",
+  "specification.md": "docs/ja/specification.md"
+}
+```
+
+```sh
+moura report . --japanese-views japanese-views.json
+```
+
+Both the JSON path and its mapped Markdown paths resolve relative to the
+project; absolute paths are accepted. Keys must match configured canonical
+source paths. Invalid translations fail before publication. Unmapped sources
+fall back to English. This validates traceability and protected Markdown, not
+translation meaning; review Japanese prose before distribution. No automatic
+translation or remote artifact retrieval occurs during CLI execution.
+
+Outputs are staged before publication. Updates require an unchanged ownership
+manifest and matching generated-file hashes. Project/filesystem roots, protected
+inputs, symlink components/entries, hard links, unrelated files, and edited
+outputs are rejected before replacement. **CLI v1 output directories do not
+have ownership metadata:** choose a fresh `--output` directory or manually move
+the old report aside, then regenerate. Do not put project data in generated
+output. Concurrent hostile filesystem changes are outside the local CLI's
+supported execution boundary. See [migration notes](CHANGELOG.md).
 
 Allure results associate evidence using one or more ordered `moura_requirement`, `moura_scenario`, and `moura_case` local-ID triples and exactly one `moura_layer` label. Moura reconstructs canonical Case IDs at the adapter boundary. See the [Allure evidence adapter contract](docs/check.md#allure-evidence-adapter) for supported statuses and input details.
 

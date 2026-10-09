@@ -17,7 +17,24 @@ npx moura check . --strict-traceability
 npx moura report .
 ```
 
-Then open `moura-report/index.html`. `npm test` runs Vitest; the configured
+Then open `moura-report/index.html` for the Quality Overview; its Requirement
+Coverage link opens `moura-report/moura/index.html`. REQ/Spec snapshots are in
+`moura-report/moura/sources/`. Report CLI v2 also accepts project-relative or
+absolute destinations:
+
+```sh
+npx moura report . --output reports/quality
+npx moura report . --output /tmp/vitest-minimal-quality
+```
+
+Use Node.js 24 or later. Keep `.moura-report.json` with generated output for safe
+updates. Legacy output without ownership metadata must be moved aside or replaced
+using a fresh output path. `?lang=ja` / `?lang=en` switches UI language; titles
+fall back to canonical English unless validated Japanese views are explicitly
+provided. See the repository [CLI guide](../../README.md#cli) for the local view
+mapping format. No API key is required.
+
+`npm test` runs Vitest; the configured
 `allure-vitest` reporter writes machine-readable Allure result JSON to
 `allure-results/`. Before every test run, the `pretest` script removes that
 directory with the Node.js filesystem API, so Moura can only consume Evidence

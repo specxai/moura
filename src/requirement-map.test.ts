@@ -502,7 +502,7 @@ describe("Requirement Map", () => {
         const source = await readFile(
           join(
             root,
-            "moura-report/sources",
+            "moura-report/moura/sources",
             requirementSourceFilename("spec.md"),
           ),
           "utf8",

@@ -9,7 +9,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it as vitestIt } from "vitest";
 
 import { mouraEvidenceTest } from "./test-support/moura-evidence.js";
@@ -194,7 +194,7 @@ requirements:
     const sourceHtml = await readFile(
       join(
         directory,
-        "moura-report/sources/source-7748c55e0769ceb2f4c9a94e5c4267886590b30037234b1bd6b16a479df82c95.html",
+        "moura-report/moura/sources/source-7748c55e0769ceb2f4c9a94e5c4267886590b30037234b1bd6b16a479df82c95.html",
       ),
       "utf8",
     );
@@ -241,7 +241,7 @@ requirements:
       readFile(
         join(
           directory,
-          "moura-report/sources/source-718dee348093562dc0675c4be584825d14c1bba51f8a5ec1a72d7a6e27ce74e6.html",
+          "moura-report/moura/sources/source-718dee348093562dc0675c4be584825d14c1bba51f8a5ec1a72d7a6e27ce74e6.html",
         ),
         "utf8",
       ),
@@ -292,7 +292,7 @@ requirements:
     const filename = snapshotPath!.slice("./sources/".length);
     expect(Buffer.byteLength(filename, "utf8")).toBeLessThan(100);
     const sourceHtml = await readFile(
-      join(directory, "moura-report", snapshotPath!),
+      join(directory, "moura-report/moura", snapshotPath!),
       "utf8",
     );
     expect(sourceHtml).toContain(`<h1>${source}</h1>`);
@@ -390,6 +390,7 @@ requirements:
     expect(reverseSection).not.toContain("✓ No issues found");
 
     const strict = await reportProjectDirectory(directory, {
+      output: "strict-report",
       strictTraceability: true,
     });
     expect(strict.exitCode).toBe(1);
@@ -491,28 +492,30 @@ requirements:
     expect(html).not.toContain("ignored");
   });
 
-  it("replaces generated output, including stale files", async () => {
+  it("refuses generated output until the user removes it", async () => {
     const directory = await mkdtemp(join(tmpdir(), "moura-report-test-"));
     directories.push(directory);
     await writeProject(directory);
 
     const first = await reportProjectDirectory(directory);
     expect(first.exitCode).toBe(0);
-    await writeFile(join(directory, "moura-report", "stale.txt"), "stale");
-    await writeFile(first.outputPath!, "previous report");
-
     const second = await reportProjectDirectory(directory);
-
-    expect(second.exitCode).toBe(0);
-    expect(await readFile(second.outputPath!, "utf8")).toContain(
+    expect(second.exitCode).toBe(1);
+    expect(second.errors.join("\n")).toContain(dirname(first.overviewPath!));
+    expect(await readFile(first.outputPath!, "utf8")).toContain(
       "Requirement Coverage",
     );
-    await expect(
-      readFile(join(directory, "moura-report", "stale.txt")),
-    ).rejects.toThrow();
+    await writeFile(join(directory, "moura-report", "stale.txt"), "sentinel");
+    const refused = await reportProjectDirectory(directory);
+    expect(refused.exitCode).toBe(1);
+    expect(
+      await readFile(join(directory, "moura-report", "stale.txt"), "utf8"),
+    ).toBe("sentinel");
+    await rm(join(directory, "moura-report"), { recursive: true });
+    expect((await reportProjectDirectory(directory)).exitCode).toBe(0);
   });
 
-  it("replaces a hard-linked entry point without modifying its other link", async () => {
+  it("rejects a hard-linked entry point without modifying its other link", async () => {
     const parent = await mkdtemp(join(tmpdir(), "moura-report-test-"));
     directories.push(parent);
     const directory = join(parent, "project");
@@ -524,14 +527,12 @@ requirements:
 
     const result = await reportProjectDirectory(directory);
 
-    expect(result.exitCode).toBe(0);
+    expect(result.exitCode).toBe(1);
     expect(await readFile(outside, "utf8")).toBe("outside sentinel");
-    expect(await readFile(result.outputPath!, "utf8")).toContain(
-      "Requirement Coverage",
-    );
+    expect(result.outputPath).toBeUndefined();
   });
 
-  it("replaces a symlinked report directory without deleting its target", async () => {
+  it("rejects a symlinked report directory without deleting its target", async () => {
     const parent = await mkdtemp(join(tmpdir(), "moura-report-test-"));
     directories.push(parent);
     const directory = join(parent, "project");
@@ -543,19 +544,19 @@ requirements:
 
     const result = await reportProjectDirectory(directory);
 
-    expect(result.exitCode).toBe(0);
+    expect(result.exitCode).toBe(1);
     expect(await readFile(join(outside, "index.html"), "utf8")).toBe(
       "outside sentinel",
     );
-    expect((await lstat(join(directory, "moura-report"))).isDirectory()).toBe(
-      true,
-    );
+    expect(
+      (await lstat(join(directory, "moura-report"))).isSymbolicLink(),
+    ).toBe(true);
     expect(
       (await lstat(join(directory, "moura-report", "index.html"))).isFile(),
     ).toBe(true);
   });
 
-  it("replaces a symlinked entry point without overwriting its target", async () => {
+  it("rejects a symlinked entry point without overwriting its target", async () => {
     const parent = await mkdtemp(join(tmpdir(), "moura-report-test-"));
     directories.push(parent);
     const directory = join(parent, "project");
@@ -567,9 +568,9 @@ requirements:
 
     const result = await reportProjectDirectory(directory);
 
-    expect(result.exitCode).toBe(0);
+    expect(result.exitCode).toBe(1);
     expect(await readFile(outside, "utf8")).toBe("outside sentinel");
-    expect((await lstat(result.outputPath!)).isFile()).toBe(true);
+    expect(result.outputPath).toBeUndefined();
   });
 });
 

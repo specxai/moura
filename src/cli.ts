@@ -48,13 +48,43 @@ if (command === "--version" || command === "-v") {
     process.exitCode = result.exitCode;
   }
 } else if (command === "report") {
-  if (commandArguments.length > 1) {
-    console.error("Usage: moura report [directory]");
+  const directories: string[] = [];
+  let output: string | undefined;
+  let japaneseViews: string | undefined;
+  let invalid = false;
+  for (let index = 0; index < commandArguments.length; index++) {
+    const argument = commandArguments[index]!;
+    if (argument === "--output" || argument === "--japanese-views") {
+      const value = commandArguments[++index];
+      if (!value || value.startsWith("--")) {
+        invalid = true;
+        break;
+      }
+      if (argument === "--output") {
+        if (output !== undefined) invalid = true;
+        output = value;
+      } else {
+        if (japaneseViews !== undefined) invalid = true;
+        japaneseViews = value;
+      }
+    } else if (argument.startsWith("-")) invalid = true;
+    else directories.push(argument);
+  }
+  if (invalid || directories.length > 1) {
+    console.error(
+      "Usage: moura report [directory] [--output <directory>] [--japanese-views <json>]\nReport output must not exist, even as an empty directory. Remove it yourself before regenerating.",
+    );
     process.exitCode = 1;
   } else {
     const result = await reportProjectDirectory(
-      commandArguments[0] ?? process.cwd(),
+      directories[0] ?? process.cwd(),
+      {
+        ...(output === undefined ? {} : { output }),
+        ...(japaneseViews === undefined ? {} : { japaneseViews }),
+      },
     );
+    if (result.overviewPath)
+      console.log(`✓ Quality Overview: ${result.overviewPath}`);
     if (result.outputPath)
       console.log(`✓ Requirement coverage report: ${result.outputPath}`);
     for (const error of result.errors) console.error(`- ${error}`);
@@ -65,6 +95,8 @@ if (command === "--version" || command === "-v") {
     [
       "Moura is in early development.",
       "Available commands: validate, check, report.",
+      "Usage: moura report [directory] [--output <directory>] [--japanese-views <json>]",
+      "Report output must not exist, even as an empty directory. Remove it yourself before regenerating.",
     ].join("\n"),
   );
   if (command && command !== "--help" && command !== "-h") {

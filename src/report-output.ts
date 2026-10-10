@@ -111,6 +111,27 @@ async function inspectOutput(output: string, root: string): Promise<boolean> {
   return true;
 }
 
+/** Inspect ancestors before creating anything; never nest reports in managed output. */
+async function checkReportAncestors(
+  output: string,
+  root: string,
+): Promise<void> {
+  let ancestor = dirname(output);
+  while (true) {
+    if (await stat(resolve(ancestor, marker))) {
+      // Reuse the ownership/content/link checks. Invalid ancestor metadata also
+      // fails closed rather than allowing writes into a possibly managed report.
+      await inspectOutput(ancestor, root);
+      throw new Error(
+        `Output is nested inside an owned Moura report: ${ancestor}`,
+      );
+    }
+    const parent = dirname(ancestor);
+    if (parent === ancestor) break;
+    ancestor = parent;
+  }
+}
+
 /** Never recursively delete a user-selected directory. Stage, validate, then rename. */
 export async function writeReportOutput(
   root: string,
@@ -145,6 +166,7 @@ export async function writeReportOutput(
         throw new Error(`Output overlaps protected input: ${path}`);
   }
   await checkParents(output);
+  await checkReportAncestors(output, root);
   const existed = await inspectOutput(output, root);
   const original = await stat(output);
   await mkdir(dirname(output), { recursive: true });
@@ -173,6 +195,7 @@ export async function writeReportOutput(
       { flag: "wx" },
     );
     await checkParents(output);
+    await checkReportAncestors(output, root);
     if ((await inspectOutput(output, root)) !== existed)
       throw new Error("Output changed while generating report");
     const current = await stat(output);

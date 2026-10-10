@@ -272,6 +272,62 @@ describe("output safety", () => {
 });
 
 describe("report output ownership and permissions", () => {
+  safetyIt.each(["direct", "deep", "absolute", "existing-source-directory"])(
+    "rejects %s output inside an owned report and preserves future updates",
+    async (kind) => {
+      const { project } = await fixture();
+      await evidence(project, "passed");
+      const initial = await reportProjectDirectory(project);
+      expect(initial.exitCode, initial.errors.join("\n")).toBe(0);
+      const output = dirname(initial.overviewPath!);
+      const before = new Map<string, string>();
+      for (const file of [
+        "index.html",
+        ".moura-report.json",
+        "moura/index.html",
+        ...(await readdir(join(output, "moura/sources"))).map(
+          (name) => `moura/sources/${name}`,
+        ),
+      ])
+        before.set(file, await readFile(join(output, file), "utf8"));
+      const target =
+        kind === "deep"
+          ? "moura-report/first/second/child"
+          : kind === "existing-source-directory"
+            ? "moura-report/moura/sources/child"
+            : "moura-report/child";
+      const result = await reportProjectDirectory(project, {
+        output: kind === "absolute" ? resolve(project, target) : target,
+      });
+      expect(result.exitCode).toBe(1);
+      expect(result.errors.join("\n")).toContain(
+        "nested inside an owned Moura report",
+      );
+      expect(await readdir(output)).toEqual([
+        ".moura-report.json",
+        "index.html",
+        "moura",
+      ]);
+      expect(await readdir(join(output, "moura"))).toEqual([
+        "index.html",
+        "sources",
+      ]);
+      expect(await readdir(join(output, "moura/sources"))).not.toContain(
+        "child",
+      );
+      for (const [file, contents] of before)
+        expect(await readFile(join(output, file), "utf8")).toBe(contents);
+      expect((await reportProjectDirectory(project)).exitCode).toBe(0);
+      expect(
+        (await reportProjectDirectory(project, { output: "ordinary/report" }))
+          .exitCode,
+      ).toBe(0);
+      expect(
+        (await reportProjectDirectory(project, { output: "ordinary/report" }))
+          .exitCode,
+      ).toBe(0);
+    },
+  );
   safetyIt.each(["empty", "nonempty", "invalid-marker"])(
     "preserves existing unowned %s output unchanged",
     async (kind) => {

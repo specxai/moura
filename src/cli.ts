@@ -72,7 +72,7 @@ if (command === "--version" || command === "-v") {
   }
   if (invalid || directories.length > 1) {
     console.error(
-      "Usage: moura report [directory] [--output <directory>] [--japanese-views <json>]",
+      "Usage: moura report [directory] [--output <directory>] [--japanese-views <json>]\nReport output must not exist, even as an empty directory. Remove it yourself before regenerating.",
     );
     process.exitCode = 1;
   } else {
@@ -95,6 +95,8 @@ if (command === "--version" || command === "-v") {
     [
       "Moura is in early development.",
       "Available commands: validate, check, report.",
+      "Usage: moura report [directory] [--output <directory>] [--japanese-views <json>]",
+      "Report output must not exist, even as an empty directory. Remove it yourself before regenerating.",
     ].join("\n"),
   );
   if (command && command !== "--help" && command !== "-h") {

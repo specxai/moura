@@ -16,10 +16,11 @@
   generating/copying external HTML or linking to absent report artifacts.
 - `--japanese-views <json>` explicitly configures locally validated translated
   sources. Untranslated titles fall back to English; invalid views are rejected.
-- Output is staged and updated only when its ownership manifest, project identity,
-  contents, and filesystem paths are safe. Unsafe/unrecognized/edited outputs
-  are preserved and rejected. **Move CLI v1 output aside or use a new output
-  directory for migration**, because v1 output lacks ownership metadata.
+- Report output must not exist: existing files and directories, including empty
+  directories and previous reports, are rejected without changes. Remove output
+  yourself or choose a new path before regeneration. Ownership metadata, hash
+  matching, updates and backups are no longer used. Private staging, exclusive
+  creation, umask permissions and protected-input/symlink checks remain.
 
 Future issue candidates: opt-in external HTML report bundling with portable
 asset/link handling, and configurable external metric input locations. These

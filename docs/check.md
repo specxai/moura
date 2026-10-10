@@ -143,13 +143,13 @@ missing. Adapter/semantic diagnostics retain their existing exit behavior.
 
 Source links point to exact bundled heading anchors, so navigation works both
 from local `file:` pages and static hosts without provider-specific URLs. Edit
-canonical Markdown, not generated snapshots. Outputs include an ownership
-manifest containing project identity and generated-file hashes. Unchanged,
-owned output can be safely staged and replaced; unrelated or edited files,
-symlinks/hard links, protected inputs, and project/filesystem roots are refused.
-No arbitrary output directory is recursively deleted. Legacy output without a
-v2 manifest must be manually moved aside or replaced using a fresh `--output`
-path. Concurrent malicious mutation is outside the filesystem threat model.
+canonical Markdown, not generated snapshots. The output destination must not
+exist, even as an empty directory. Errors show the output path; remove a previous
+report yourself or choose a new `--output` before regeneration. Moura creates no
+ownership manifest or backup and never updates an existing destination. Private
+staging and exclusive creation preserve competing user data on failure. Protected
+inputs, project/filesystem roots and symlink path components remain prohibited.
+Concurrent malicious mutation is outside the filesystem threat model.
 
 Overview status uses the same shared authoritative aggregation as Moura's Quality
 Site: required FAIL/BROKEN Evidence has priority; other non-PASS required pairs

@@ -57,4 +57,5 @@ diagnostics, and the existing report locale and source navigation.
 The installed Moura package shall generate a Quality Overview, Requirement Map,
 and canonical source snapshots for supported projects, using shared authoritative
 verification semantics, optional external metrics, validated Japanese views,
-and output updates that protect project inputs and unrelated files.
+and new output creation that protects project inputs and preserves all existing
+output and unrelated files.

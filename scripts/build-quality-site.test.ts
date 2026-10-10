@@ -300,6 +300,10 @@ describe("quality site assembly", () => {
           expect(summarizeCoverage(actual.manifest, actual.check)).toEqual(
             baselineCoverage,
           );
+        await rm(join(f.root, "moura-report"), {
+          recursive: true,
+          force: true,
+        });
         expect((await reportProjectDirectory(f.root)).exitCode).toBe(0);
         expect(await snapshot()).toEqual(baselineFiles);
         await buildQualitySite(f.root);

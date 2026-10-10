@@ -390,6 +390,7 @@ requirements:
     expect(reverseSection).not.toContain("✓ No issues found");
 
     const strict = await reportProjectDirectory(directory, {
+      output: "strict-report",
       strictTraceability: true,
     });
     expect(strict.exitCode).toBe(1);
@@ -491,7 +492,7 @@ requirements:
     expect(html).not.toContain("ignored");
   });
 
-  it("replaces generated output, including stale files", async () => {
+  it("refuses generated output until the user removes it", async () => {
     const directory = await mkdtemp(join(tmpdir(), "moura-report-test-"));
     directories.push(directory);
     await writeProject(directory);
@@ -499,8 +500,9 @@ requirements:
     const first = await reportProjectDirectory(directory);
     expect(first.exitCode).toBe(0);
     const second = await reportProjectDirectory(directory);
-    expect(second.exitCode).toBe(0);
-    expect(await readFile(second.outputPath!, "utf8")).toContain(
+    expect(second.exitCode).toBe(1);
+    expect(second.errors.join("\n")).toContain(join(directory, "moura-report"));
+    expect(await readFile(first.outputPath!, "utf8")).toContain(
       "Requirement Coverage",
     );
     await writeFile(join(directory, "moura-report", "stale.txt"), "sentinel");
@@ -509,6 +511,8 @@ requirements:
     expect(
       await readFile(join(directory, "moura-report", "stale.txt"), "utf8"),
     ).toBe("sentinel");
+    await rm(join(directory, "moura-report"), { recursive: true });
+    expect((await reportProjectDirectory(directory)).exitCode).toBe(0);
   });
 
   it("rejects a hard-linked entry point without modifying its other link", async () => {

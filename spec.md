@@ -164,9 +164,8 @@ Scenario or Requirement is covered only when all descendants are covered.
 #### CASE-003 Generate a deterministic and filesystem-safe coverage report
 
 Requirement Coverage output preserves hierarchy, identities, statuses,
-severities, gaps, and diagnostics with safe HTML escaping. Regeneration
-replaces stale, hard-linked, or symlinked output entries without modifying or
-deleting targets outside the generated report.
+severities, gaps, and diagnostics with safe HTML escaping. Existing output is
+rejected without changes; users remove it themselves before regeneration.
 
 ## REQ-004
 
@@ -382,14 +381,15 @@ dependencies, repository scripts, credentials, or fixed hosting URLs.
 #### CASE-002 Reject unsafe output and preserve existing inputs
 
 Before writing, reject filesystem/project roots and ancestors, protected source
-and input paths, symlink components/entries, hard-linked files, and unowned or
-modified output. Successful generation stages sibling files and replaces only
-an unchanged output carrying Moura's version/project/content ownership manifest.
-Cleanup unlinks validated generated files and removes empty known directories;
-it never recursively deletes a user-selected directory. CLI v1 reports lacking
-ownership metadata require a fresh output or an explicit manual move, rather
-than automatic deletion. Concurrent hostile filesystem mutation is outside the
-supported local CLI execution boundary.
+and input paths, and symlink path components. The output must not exist: reject
+any existing file or directory, including empty directories and previous reports,
+with an error identifying the output path. Users remove output themselves before
+regeneration. Do not create ownership metadata, hashes or backups, replace existing
+output, or inherit its permissions. Build in private staging, create output and
+files exclusively, and publish new POSIX permissions respecting umask. On failure,
+remove only items created by this invocation; preserve competing user data.
+Windows and POSIX must obey this contract. Concurrent hostile filesystem mutation
+is outside the supported local CLI execution boundary.
 
 #### CASE-003 Use validated Japanese views without runtime translation
 

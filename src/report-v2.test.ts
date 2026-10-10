@@ -1,6 +1,5 @@
 import {
   cp,
-  chmod,
   lstat,
   link,
   mkdir,
@@ -93,38 +92,6 @@ describe("Report CLI v2 project boundary", () => {
         expect(
           await readFile(resolve(dirname(result.outputPath!), href!), "utf8"),
         ).toContain("data-source-content");
-      expect(
-        (
-          await reportProjectDirectory(
-            project,
-            mode === "default" ? {} : { output },
-          )
-        ).exitCode,
-      ).toBe(0);
-      expect(
-        (await readdir(dirname(expected))).filter((name) =>
-          name.startsWith(".moura-"),
-        ),
-      ).toEqual([]);
-    },
-  );
-
-  it.each([
-    ["passed", "PASS"],
-    ["failed", "FAIL"],
-    ["broken", "FAIL"],
-    ["skipped", "INCOMPLETE"],
-  ])(
-    "shares authoritative %s → %s status with the Quality Site",
-    async (status, expected) => {
-      const { project } = await fixture();
-      await evidence(project, status!);
-      const result = await reportProjectDirectory(project);
-      const overview = await collectQualityOverview(project);
-      expect(overview.status).toBe(expected);
-      expect(await readFile(result.overviewPath!, "utf8")).toContain(
-        `data-status="${overview.status}"`,
-      );
     },
   );
 
@@ -193,7 +160,7 @@ describe("output safety", () => {
   });
 
   safetyIt(
-    "rejects unowned legacy output, modified generated files, and unknown added files",
+    "refuses existing legacy and generated output without changing files",
     async () => {
       const { project } = await fixture();
       await evidence(project, "passed");
@@ -271,116 +238,64 @@ describe("output safety", () => {
   );
 });
 
-describe("report output ownership and permissions", () => {
-  safetyIt.each(["direct", "deep", "absolute", "existing-source-directory"])(
-    "rejects %s output inside an owned report and preserves future updates",
-    async (kind) => {
-      const { project } = await fixture();
-      await evidence(project, "passed");
-      const initial = await reportProjectDirectory(project);
-      expect(initial.exitCode, initial.errors.join("\n")).toBe(0);
-      const output = dirname(initial.overviewPath!);
-      const before = new Map<string, string>();
-      for (const file of [
-        "index.html",
-        ".moura-report.json",
-        "moura/index.html",
-        ...(await readdir(join(output, "moura/sources"))).map(
-          (name) => `moura/sources/${name}`,
-        ),
-      ])
-        before.set(file, await readFile(join(output, file), "utf8"));
-      const target =
-        kind === "deep"
-          ? "moura-report/first/second/child"
-          : kind === "existing-source-directory"
-            ? "moura-report/moura/sources/child"
-            : "moura-report/child";
-      const result = await reportProjectDirectory(project, {
-        output: kind === "absolute" ? resolve(project, target) : target,
-      });
-      expect(result.exitCode).toBe(1);
-      expect(result.errors.join("\n")).toContain(
-        "nested inside an owned Moura report",
-      );
-      expect(await readdir(output)).toEqual([
-        ".moura-report.json",
-        "index.html",
-        "moura",
-      ]);
-      expect(await readdir(join(output, "moura"))).toEqual([
-        "index.html",
-        "sources",
-      ]);
-      expect(await readdir(join(output, "moura/sources"))).not.toContain(
-        "child",
-      );
-      for (const [file, contents] of before)
-        expect(await readFile(join(output, file), "utf8")).toBe(contents);
-      expect((await reportProjectDirectory(project)).exitCode).toBe(0);
-      expect(
-        (await reportProjectDirectory(project, { output: "ordinary/report" }))
-          .exitCode,
-      ).toBe(0);
-      expect(
-        (await reportProjectDirectory(project, { output: "ordinary/report" }))
-          .exitCode,
-      ).toBe(0);
-    },
-  );
-  safetyIt.each(["empty", "nonempty", "invalid-marker"])(
-    "preserves existing unowned %s output unchanged",
+describe("new report output and permissions", () => {
+  safetyIt.each(["empty", "nonempty", "file"])(
+    "preserves existing %s output unchanged",
     async (kind) => {
       const { project } = await fixture();
       const output = join(project, "custom-report");
-      await mkdir(output);
-      if (kind !== "empty")
-        await writeFile(
-          join(output, kind === "nonempty" ? "sentinel" : ".moura-report.json"),
-          "sentinel",
-        );
+      if (kind === "file") await writeFile(output, "sentinel");
+      else {
+        await mkdir(output);
+        if (kind === "nonempty")
+          await writeFile(join(output, "sentinel"), "sentinel");
+      }
       const before = await lstat(output);
-      const entries = await readdir(output);
       const result = await reportProjectDirectory(project, { output });
       expect(result.exitCode).toBe(1);
-      expect(await readdir(output)).toEqual(entries);
+      expect(result.errors.join("\n")).toContain(output);
       expect((await lstat(output)).ino).toBe(before.ino);
       expect((await lstat(output)).mode).toBe(before.mode);
-      for (const entry of entries)
-        expect(await readFile(join(output, entry), "utf8")).toBe("sentinel");
+      if (kind === "file")
+        expect(await readFile(output, "utf8")).toBe("sentinel");
+      else {
+        expect(await readdir(output)).toEqual(
+          kind === "empty" ? [] : ["sentinel"],
+        );
+        if (kind === "nonempty")
+          expect(await readFile(join(output, "sentinel"), "utf8")).toBe(
+            "sentinel",
+          );
+      }
     },
   );
   safetyIt.skipIf(process.platform === "win32")(
-    "publishes umask permissions and preserves owned directory and HTML modes on update",
+    "publishes new directory, HTML and source permissions respecting umask",
     async () => {
       const { project } = await fixture();
       const result = await reportProjectDirectory(project);
       const output = dirname(result.overviewPath!);
-      expect((await lstat(output)).mode & 0o777).toBe(0o777 & ~process.umask());
-      expect((await lstat(result.overviewPath!)).mode & 0o777).toBe(
-        0o666 & ~process.umask(),
-      );
-      const directories = [
+      for (const directory of [
         output,
         join(output, "moura"),
         join(output, "moura/sources"),
-      ];
-      for (const directory of directories) await chmod(directory, 0o750);
-      const source = join(
-        output,
-        "moura/sources",
-        requirementSourceFilename("requirements.md"),
-      );
-      for (const file of [result.overviewPath!, result.outputPath!, source])
-        await chmod(file, 0o640);
-      const updated = await reportProjectDirectory(project);
-      expect(updated.overviewPath, updated.errors.join("\n")).toBeDefined();
-      for (const directory of directories)
-        expect((await lstat(directory)).mode & 0o777).toBe(0o750);
-      for (const file of [updated.overviewPath!, updated.outputPath!, source]) {
-        expect((await lstat(file)).mode & 0o777).toBe(0o640);
+      ])
+        expect((await lstat(directory)).mode & 0o777).toBe(
+          0o777 & ~process.umask(),
+        );
+      for (const file of [
+        result.overviewPath!,
+        result.outputPath!,
+        join(
+          output,
+          "moura/sources",
+          requirementSourceFilename("requirements.md"),
+        ),
+      ]) {
+        expect((await lstat(file)).mode & 0o777).toBe(0o666 & ~process.umask());
         expect(await readFile(file, "utf8")).toContain("<!doctype html>");
       }
+      expect(await readdir(output)).toEqual(["index.html", "moura"]);
     },
   );
 });

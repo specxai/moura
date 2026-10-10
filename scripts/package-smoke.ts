@@ -151,6 +151,17 @@ export async function runPackageSmoke(): Promise<void> {
       "utf8",
     );
     assert.match(overview, /data-status="PASS"/u);
+    const existingReport = join(example, "moura-report");
+    assert.throws(
+      () => run(binary, ["report", example], packageDirectory),
+      /Output already exists/u,
+    );
+    assert.equal(
+      await readFile(join(existingReport, "index.html"), "utf8"),
+      overview,
+    );
+    await rm(existingReport, { recursive: true });
+    run(binary, ["report", example], packageDirectory);
     assert.match(overview, /href="\.\/moura\/index\.html"/u);
     assert.doesNotMatch(overview, /href="\.\/(?:allure|coverage)\/"/u);
     const map = await readFile(

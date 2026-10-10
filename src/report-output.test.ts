@@ -1,4 +1,5 @@
 import {
+  copyFile,
   lstat,
   mkdtemp,
   mkdir,
@@ -14,7 +15,11 @@ import { mouraEvidenceTest } from "./test-support/moura-evidence.js";
 
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs/promises")>();
-  return { ...actual, writeFile: vi.fn(actual.writeFile) };
+  return {
+    ...actual,
+    writeFile: vi.fn(actual.writeFile),
+    copyFile: vi.fn(actual.copyFile),
+  };
 });
 const it = mouraEvidenceTest(
   vitestIt,
@@ -24,6 +29,7 @@ const it = mouraEvidenceTest(
 const roots: string[] = [];
 afterEach(async () => {
   vi.mocked(writeFile).mockRestore();
+  vi.mocked(copyFile).mockRestore();
   for (const root of roots.splice(0))
     await rm(root, { recursive: true, force: true });
 });
@@ -64,7 +70,7 @@ describe("private report publication", () => {
     },
   );
 
-  it("rejects an unowned empty directory created during staging without replacing it", async () => {
+  it("rejects a competing empty directory created during staging without replacing it", async () => {
     const { root, output } = await fixture();
     const actual =
       await vi.importActual<typeof import("node:fs/promises")>(
@@ -77,10 +83,49 @@ describe("private report publication", () => {
       return actual.writeFile(...args);
     });
     await expect(writeReportOutput(root, output, [], files)).rejects.toThrow(
-      "not an owned",
+      "Output already exists",
     );
     expect((await lstat(output)).ino).toBe(inode);
     expect(await readdir(output)).toEqual([]);
+    expect(await readdir(root)).toEqual(["report"]);
+  });
+  it("cleans staging after a generation failure without publishing output", async () => {
+    const { root, output } = await fixture();
+    vi.mocked(writeFile).mockRejectedValueOnce(new Error("generation failed"));
+    await expect(writeReportOutput(root, output, [], files)).rejects.toThrow(
+      "generation failed",
+    );
+    expect(await readdir(root)).toEqual([]);
+  });
+  it("rolls back partial publication after a copy failure", async () => {
+    const { root, output } = await fixture();
+    const actual =
+      await vi.importActual<typeof import("node:fs/promises")>(
+        "node:fs/promises",
+      );
+    vi.mocked(copyFile)
+      .mockImplementationOnce(actual.copyFile)
+      .mockRejectedValueOnce(new Error("publication failed"));
+    await expect(writeReportOutput(root, output, [], files)).rejects.toThrow(
+      "publication failed",
+    );
+    expect(await readdir(root)).toEqual([]);
+  });
+  it("preserves a competing file during publication and removes only its own output", async () => {
+    const { root, output } = await fixture();
+    const actual =
+      await vi.importActual<typeof import("node:fs/promises")>(
+        "node:fs/promises",
+      );
+    vi.mocked(copyFile).mockImplementationOnce(async (...args) => {
+      await actual.writeFile(String(args[1]), "user sentinel");
+      return actual.copyFile(...args);
+    });
+    await expect(writeReportOutput(root, output, [], files)).rejects.toThrow();
+    expect(await actual.readFile(join(output, "index.html"), "utf8")).toBe(
+      "user sentinel",
+    );
+    expect(await readdir(output)).toEqual(["index.html"]);
     expect(await readdir(root)).toEqual(["report"]);
   });
 });

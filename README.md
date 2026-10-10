@@ -161,7 +161,6 @@ The default project-relative output layout is:
 ```text
 moura-report/
 ├── index.html                 # Quality Overview
-├── .moura-report.json         # ownership/content metadata; keep this file
 └── moura/
     ├── index.html             # Requirement Map / Coverage
     └── sources/               # escaped REQ/Spec HTML snapshots
@@ -210,14 +209,18 @@ fall back to English. This validates traceability and protected Markdown, not
 translation meaning; review Japanese prose before distribution. No automatic
 translation or remote artifact retrieval occurs during CLI execution.
 
-Outputs are staged before publication. Updates require an unchanged ownership
-manifest and matching generated-file hashes. Project/filesystem roots, protected
-inputs, symlink components/entries, hard links, unrelated files, and edited
-outputs are rejected before replacement. **CLI v1 output directories do not
-have ownership metadata:** choose a fresh `--output` directory or manually move
-the old report aside, then regenerate. Do not put project data in generated
-output. Concurrent hostile filesystem changes are outside the local CLI's
-supported execution boundary. See [migration notes](CHANGELOG.md).
+Reports are generated only into a destination that does not exist. Any existing
+file or directory, even an empty directory or a previous Moura report, causes
+an error containing the output path. Moura never deletes, overwrites, or updates
+existing output. To regenerate, remove the destination yourself beforehand or
+choose a new `--output` path. This applies to the default `moura-report/` too.
+
+Generation uses private staging and exclusive destination/file creation. Failed
+publication cleans up only items created by that invocation, preserving competing
+user data. New POSIX report permissions respect umask. Project/filesystem roots,
+protected inputs and symlink path components are rejected. No ownership metadata
+or backups are generated. Concurrent hostile filesystem mutation remains outside
+the local CLI's supported execution boundary. See [migration notes](CHANGELOG.md).
 
 Allure results associate evidence using one or more ordered `moura_requirement`, `moura_scenario`, and `moura_case` local-ID triples and exactly one `moura_layer` label. Moura reconstructs canonical Case IDs at the adapter boundary. See the [Allure evidence adapter contract](docs/check.md#allure-evidence-adapter) for supported statuses and input details.
 

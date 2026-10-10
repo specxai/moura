@@ -1,22 +1,17 @@
-import { createHash } from "node:crypto";
+import { constants } from "node:fs";
 import {
   chmod,
+  copyFile,
   lstat,
   mkdir,
   mkdtemp,
-  readFile,
-  readdir,
   realpath,
-  rename,
+  rm,
   rmdir,
   unlink,
   writeFile,
 } from "node:fs/promises";
 import { dirname, isAbsolute, parse, relative, resolve, sep } from "node:path";
-
-const marker = ".moura-report.json";
-const digest = (text: string) =>
-  createHash("sha256").update(text).digest("hex");
 
 function contains(parent: string, child: string): boolean {
   const path = relative(parent, child);
@@ -46,93 +41,14 @@ async function checkParents(path: string): Promise<void> {
   }
 }
 
-async function inventory(path: string, prefix = ""): Promise<string[]> {
-  const files: string[] = [];
-  for (const name of await readdir(path)) {
-    const child = resolve(path, name);
-    const entry = await lstat(child);
-    if (
-      entry.isSymbolicLink() ||
-      (!entry.isDirectory() && (!entry.isFile() || entry.nlink !== 1))
-    )
-      throw new Error(`Unsafe output entry: ${child}`);
-    if (entry.isDirectory()) {
-      if (!["moura", "moura/sources"].includes(`${prefix}${name}`))
-        throw new Error(`Unrecognized output directory: ${child}`);
-      files.push(...(await inventory(child, `${prefix}${name}/`)));
-    } else files.push(`${prefix}${name}`);
-  }
-  return files.sort();
-}
-
-async function inspectOutput(output: string, root: string): Promise<boolean> {
-  if (!(await stat(output))) return false;
-  const files = await inventory(output);
-  if (!files.includes(marker))
+async function requireAbsent(output: string): Promise<void> {
+  if (await stat(output))
     throw new Error(
-      "Output is not an owned Moura v2 report. Choose a new --output directory or move the old report aside; no existing files were removed.",
+      `Output already exists: ${output}. Remove it yourself before regenerating the report.`,
     );
-  const value: unknown = JSON.parse(
-    await readFile(resolve(output, marker), "utf8"),
-  );
-  if (
-    typeof value !== "object" ||
-    value === null ||
-    !("version" in value) ||
-    value.version !== 2 ||
-    !("project" in value) ||
-    value.project !== root ||
-    !("files" in value) ||
-    typeof value.files !== "object" ||
-    value.files === null
-  )
-    throw new Error("Invalid Moura report ownership marker");
-  const hashes = value.files as Record<string, unknown>;
-  if (
-    JSON.stringify(files.filter((file) => file !== marker)) !==
-    JSON.stringify(Object.keys(hashes).sort())
-  )
-    throw new Error(
-      "Output contains unrecognized files; refusing to replace it",
-    );
-  for (const file of files.filter((file) => file !== marker)) {
-    if (
-      !(
-        file === "index.html" ||
-        file === "moura/index.html" ||
-        /^moura\/sources\/source-[a-f0-9]{64}\.html$/u.test(file)
-      ) ||
-      hashes[file] !== digest(await readFile(resolve(output, file), "utf8"))
-    )
-      throw new Error(
-        `Output file was modified: ${file}; refusing to replace it`,
-      );
-  }
-  return true;
 }
 
-/** Inspect ancestors before creating anything; never nest reports in managed output. */
-async function checkReportAncestors(
-  output: string,
-  root: string,
-): Promise<void> {
-  let ancestor = dirname(output);
-  while (true) {
-    if (await stat(resolve(ancestor, marker))) {
-      // Reuse the ownership/content/link checks. Invalid ancestor metadata also
-      // fails closed rather than allowing writes into a possibly managed report.
-      await inspectOutput(ancestor, root);
-      throw new Error(
-        `Output is nested inside an owned Moura report: ${ancestor}`,
-      );
-    }
-    const parent = dirname(ancestor);
-    if (parent === ancestor) break;
-    ancestor = parent;
-  }
-}
-
-/** Never recursively delete a user-selected directory. Stage, validate, then rename. */
+/** Create only new output. Exclusive creation never replaces an existing destination. */
 export async function writeReportOutput(
   root: string,
   requested: string,
@@ -143,7 +59,7 @@ export async function writeReportOutput(
   const output = resolve(root, requested);
   if (output === parse(output).root || contains(output, root))
     throw new Error(
-      "Output must not be the filesystem root, project root, or an ancestor of the project",
+      `Unsafe output ${output}: must not be the filesystem root, project root, or an ancestor of the project`,
     );
   const protectedPaths = [
     "src",
@@ -163,98 +79,114 @@ export async function writeReportOutput(
     if (await stat(input)) paths.push(await realpath(input));
     for (const path of paths)
       if (contains(output, path) || contains(path, output))
-        throw new Error(`Output overlaps protected input: ${path}`);
+        throw new Error(
+          `Unsafe output ${output}: overlaps protected input ${path}`,
+        );
   }
+  await requireAbsent(output);
   await checkParents(output);
-  await checkReportAncestors(output, root);
-  const existed = await inspectOutput(output, root);
-  const original = await stat(output);
+  for (const file of files.keys()) {
+    if (
+      file !== "index.html" &&
+      file !== "moura/index.html" &&
+      !/^moura\/sources\/source-[a-f0-9]{64}\.html$/u.test(file)
+    )
+      throw new Error(`Invalid report file: ${file}`);
+  }
   await mkdir(dirname(output), { recursive: true });
   await checkParents(dirname(output));
-  const stageContainer = await mkdtemp(
-    resolve(dirname(output), ".moura-stage-"),
-  );
-  const stage = resolve(stageContainer, "report");
-  await mkdir(stage, { mode: 0o700 });
-  let backup: string | undefined;
-  let published = false;
+  const stage = await mkdtemp(resolve(dirname(output), ".moura-stage-"));
+  const created: {
+    path: string;
+    ino: number;
+    dev: number;
+    directory: boolean;
+  }[] = [];
+  const remember = async (path: string, directory: boolean) => {
+    const info = await lstat(path);
+    created.push({ path, ino: info.ino, dev: info.dev, directory });
+  };
   try {
     for (const [file, contents] of files) {
-      await mkdir(dirname(resolve(stage, file)), { recursive: true });
-      await writeFile(resolve(stage, file), contents, { flag: "wx" });
+      await mkdir(dirname(resolve(stage, file)), {
+        recursive: true,
+        mode: 0o700,
+      });
+      await writeFile(resolve(stage, file), contents, {
+        flag: "wx",
+        mode: 0o600,
+      });
     }
-    await writeFile(
-      resolve(stage, marker),
-      JSON.stringify({
-        version: 2,
-        project: root,
-        files: Object.fromEntries(
-          [...files].map(([file, contents]) => [file, digest(contents)]),
-        ),
-      }) + "\n",
-      { flag: "wx" },
-    );
     await checkParents(output);
-    await checkReportAncestors(output, root);
-    if ((await inspectOutput(output, root)) !== existed)
-      throw new Error("Output changed while generating report");
-    const current = await stat(output);
-    if (original?.ino !== current?.ino || original?.dev !== current?.dev)
-      throw new Error("Output identity changed while generating report");
-    // Final permissions are prepared inside the private 0700 container.
-    // Publishing only its child avoids exposing staging contents.
-    if (process.platform !== "win32") {
-      const directoryMode = original
-        ? original.mode & 0o777
-        : 0o777 & ~process.umask();
-      const paths = [...(await inventory(stage)), "moura/sources", "moura", ""];
-      for (const path of paths) {
-        const staged = resolve(stage, path);
-        const entry = await stat(staged);
-        if (!entry) continue;
-        const previous = existed
-          ? await stat(resolve(output, path))
-          : undefined;
-        const mode = previous
-          ? previous.mode & 0o777
-          : entry.isDirectory()
-            ? directoryMode
-            : original
-              ? directoryMode & 0o666
-              : 0o666 & ~process.umask();
-        await chmod(staged, mode);
-      }
-    }
-    if (existed) {
-      backup = await mkdtemp(resolve(dirname(output), ".moura-backup-"));
-      await rmdir(backup);
-      await rename(output, backup);
-    }
+    await requireAbsent(output);
     try {
-      await rename(stage, output);
-      published = true;
+      await mkdir(output, { mode: 0o700 });
     } catch (error) {
-      if (backup) await rename(backup, output);
-      backup = undefined;
+      if ((error as NodeJS.ErrnoException).code === "EEXIST")
+        await requireAbsent(output);
       throw error;
     }
-    if (backup) {
-      await inspectOutput(backup, root);
-      await removeGeneratedDirectory(backup);
+    await remember(output, true);
+    for (const directory of ["moura", "moura/sources"]) {
+      if (![...files.keys()].some((file) => file.startsWith(`${directory}/`)))
+        continue;
+      const path = resolve(output, directory);
+      await mkdir(path, { mode: 0o700 });
+      await remember(path, true);
+    }
+    for (const file of files.keys()) {
+      const path = resolve(output, file);
+      await copyFile(resolve(stage, file), path, constants.COPYFILE_EXCL);
+      await remember(path, false);
+    }
+    if (process.platform !== "win32") {
+      for (const entry of [...created].reverse())
+        await chmod(
+          entry.path,
+          (entry.directory ? 0o777 : 0o666) & ~process.umask(),
+        );
     }
     return output;
+  } catch (error) {
+    // Only remove objects created by this invocation, never competing user data.
+    if (process.platform !== "win32") {
+      for (const entry of created.filter((entry) => entry.directory)) {
+        await checkParents(dirname(entry.path));
+        const info = await stat(entry.path);
+        if (
+          info?.isDirectory() &&
+          info.ino === entry.ino &&
+          info.dev === entry.dev
+        )
+          await chmod(entry.path, info.mode | 0o700);
+      }
+    }
+    for (const entry of [...created].reverse()) {
+      await checkParents(dirname(entry.path));
+      const info = await stat(entry.path);
+      if (
+        !info ||
+        info.isSymbolicLink() ||
+        info.ino !== entry.ino ||
+        info.dev !== entry.dev
+      )
+        continue;
+      if (entry.directory) {
+        try {
+          await rmdir(entry.path);
+        } catch (cleanupError) {
+          if (
+            !["ENOTEMPTY", "EEXIST"].includes(
+              (cleanupError as NodeJS.ErrnoException).code ?? "",
+            )
+          )
+            throw cleanupError;
+        }
+      } else await unlink(entry.path);
+    }
+    throw error;
   } finally {
-    if (!published) await removeGeneratedDirectory(stage);
-    await rmdir(stageContainer);
-  }
-}
-
-/** Unlink known regular files only; never follow links or recurse through unknown paths. */
-async function removeGeneratedDirectory(path: string): Promise<void> {
-  const files = await inventory(path);
-  for (const file of files) await unlink(resolve(path, file));
-  for (const directory of ["moura/sources", "moura", ""]) {
-    if (await stat(resolve(path, directory)))
-      await rmdir(resolve(path, directory));
+    // This private temporary directory is never a user-selected output.
+    await rm(stage, { recursive: true, force: true });
   }
 }

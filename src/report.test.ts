@@ -9,7 +9,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it as vitestIt } from "vitest";
 
 import { mouraEvidenceTest } from "./test-support/moura-evidence.js";
@@ -501,7 +501,7 @@ requirements:
     expect(first.exitCode).toBe(0);
     const second = await reportProjectDirectory(directory);
     expect(second.exitCode).toBe(1);
-    expect(second.errors.join("\n")).toContain(join(directory, "moura-report"));
+    expect(second.errors.join("\n")).toContain(dirname(first.overviewPath!));
     expect(await readFile(first.outputPath!, "utf8")).toContain(
       "Requirement Coverage",
     );

@@ -160,6 +160,19 @@ describe("output safety", () => {
   });
 
   safetyIt(
+    "rejects an absolute protected-source descendant through filesystem path aliases",
+    async () => {
+      const { project } = await fixture();
+      const output = join(project, "src", "new-report");
+      const before = await readdir(join(project, "src"));
+      const result = await reportProjectDirectory(project, { output });
+      expect(result.exitCode).toBe(1);
+      expect(result.errors.join("\n")).toContain("protected input");
+      expect(await readdir(join(project, "src"))).toEqual(before);
+    },
+  );
+
+  safetyIt(
     "refuses existing legacy and generated output without changing files",
     async () => {
       const { project } = await fixture();

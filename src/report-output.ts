@@ -56,7 +56,17 @@ export async function writeReportOutput(
   files: ReadonlyMap<string, string>,
 ): Promise<string> {
   if (!requested.trim()) throw new Error("Output directory must not be empty");
-  const output = resolve(root, requested);
+  const requestedOutput = resolve(root, requested);
+  await requireAbsent(requestedOutput);
+  await checkParents(requestedOutput);
+  // Normalize existing parent aliases (including Windows 8.3 paths) only after
+  // rejecting symlink components; append the still-absent destination suffix.
+  let ancestor = dirname(requestedOutput);
+  while (!(await stat(ancestor))) ancestor = dirname(ancestor);
+  const output = resolve(
+    await realpath(ancestor),
+    relative(ancestor, requestedOutput),
+  );
   if (output === parse(output).root || contains(output, root))
     throw new Error(
       `Unsafe output ${output}: must not be the filesystem root, project root, or an ancestor of the project`,

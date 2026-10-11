@@ -153,6 +153,7 @@ describe("quality site assembly", () => {
         "## REQ-002\n### SCN-001\n#### CASE-001 English only\n",
       );
       await mkdir(join(f.root, "allure-results"));
+      await rm(join(f.root, "moura-report"), { recursive: true });
       expect((await reportProjectDirectory(f.root)).exitCode).toBe(0);
       expect((await fetchJapaneseViews(f.root, f.access)).views).toBeDefined();
       await buildQualitySite(f.root);
@@ -261,15 +262,18 @@ describe("quality site assembly", () => {
         baseline.manifest,
         baseline.check,
       );
+      await rm(join(f.root, "moura-report"), { recursive: true });
       const baselineReport = await reportProjectDirectory(f.root);
       expect(baselineReport.exitCode).toBe(0);
       const snapshot = async () => {
-        const sources = await readdir(join(f.root, "moura-report/sources"));
+        const sources = await readdir(
+          join(f.root, "moura-report/moura/sources"),
+        );
         return Promise.all(
           ["index.html", ...sources.map((source) => `sources/${source}`)].map(
             async (path) => [
               path,
-              await readFile(join(f.root, "moura-report", path), "utf8"),
+              await readFile(join(f.root, "moura-report/moura", path), "utf8"),
             ],
           ),
         );
@@ -296,6 +300,10 @@ describe("quality site assembly", () => {
           expect(summarizeCoverage(actual.manifest, actual.check)).toEqual(
             baselineCoverage,
           );
+        await rm(join(f.root, "moura-report"), {
+          recursive: true,
+          force: true,
+        });
         expect((await reportProjectDirectory(f.root)).exitCode).toBe(0);
         expect(await snapshot()).toEqual(baselineFiles);
         await buildQualitySite(f.root);
@@ -304,7 +312,7 @@ describe("quality site assembly", () => {
           "utf8",
         );
         const canonicalReport = await readFile(
-          join(f.root, "moura-report/index.html"),
+          join(f.root, "moura-report/moura/index.html"),
           "utf8",
         );
         if (state === "valid") {

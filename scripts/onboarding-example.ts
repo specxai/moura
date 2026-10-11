@@ -275,8 +275,17 @@ export async function runOnboardingExample({
       );
     run("pnpm", ["exec", "moura", "report", "."], project);
 
-    const report = await readFile(
+    const overview = await readFile(
       join(project, "moura-report/index.html"),
+      "utf8",
+    );
+    if (
+      !overview.includes("Overall Status") ||
+      !overview.includes("./moura/index.html")
+    )
+      throw new Error("Example Quality Overview or map navigation is missing");
+    const report = await readFile(
+      join(project, "moura-report/moura/index.html"),
       "utf8",
     );
     if (!report.includes("REQ-001/SCN-001/CASE-001"))

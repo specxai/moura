@@ -164,9 +164,8 @@ Scenario or Requirement is covered only when all descendants are covered.
 #### CASE-003 Generate a deterministic and filesystem-safe coverage report
 
 Requirement Coverage output preserves hierarchy, identities, statuses,
-severities, gaps, and diagnostics with safe HTML escaping. Regeneration
-replaces stale, hard-linked, or symlinked output entries without modifying or
-deleting targets outside the generated report.
+severities, gaps, and diagnostics with safe HTML escaping. Existing output is
+rejected without changes; users remove it themselves before regeneration.
 
 ## REQ-004
 
@@ -291,8 +290,8 @@ Moura's internal dogfooding helpers.
 
 #### CASE-003 Generate Requirement Coverage
 
-The verified example generates a non-empty `moura-report/index.html` containing
-its canonical Case identity.
+The verified example generates a Quality Overview at `moura-report/index.html`
+and a non-empty `moura-report/moura/index.html` containing its canonical Case identity.
 
 ## REQ-008
 
@@ -358,3 +357,49 @@ change identity, verification, hierarchy or canonical content. Nodes outside
 the translated source, or unavailable or invalid Japanese views, shall retain
 canonical English titles. Fixed Map UI text shall use the existing report
 locale mechanism, and source navigation shall carry the selected locale.
+
+## REQ-010 Generate portable external-project quality reports
+
+### SCN-001 Use Report CLI v2 through the installed package
+
+#### CASE-001 Generate Overview and Requirement Map for an external project
+
+`moura report [directory]` uses the project-relative `moura-report/` directory.
+`--output <directory>` accepts project-relative and absolute output paths without
+changing validate or check. The top-level `index.html` is the Quality Overview;
+`moura/index.html` is the Requirement Map, with REQ/Spec snapshots in
+`moura/sources/`. Local-file navigation uses explicit HTML entry points.
+The existing public report API retains `outputPath` for the Map and adds
+`overviewPath`. Missing Allure results or coverage do not prevent artifact
+creation; existing adapter diagnostics and command exit semantics remain intact.
+The Overview and Quality Site share authoritative PASS/INCOMPLETE/FAIL aggregation
+and rendering. Allure counts and coverage summary are optional external inputs;
+Moura generates neither external HTML report and emits no unbundled report links.
+The package smoke exercises the external Vitest example without Moura development
+dependencies, repository scripts, credentials, or fixed hosting URLs.
+
+#### CASE-002 Reject unsafe output and preserve existing inputs
+
+Before writing, reject filesystem/project roots and ancestors, protected source
+and input paths, and symlink path components. The output must not exist: reject
+any existing file or directory, including empty directories and previous reports,
+with an error identifying the output path. Users remove output themselves before
+regeneration. Do not create ownership metadata, hashes or backups, replace existing
+output, or inherit its permissions. Build in private staging, create output and
+files exclusively, and publish new POSIX permissions respecting umask. On failure,
+remove only items created by this invocation; preserve competing user data.
+Windows and POSIX must obey this contract. Concurrent hostile filesystem mutation
+is outside the supported local CLI execution boundary.
+
+#### CASE-003 Use validated Japanese views without runtime translation
+
+`--japanese-views <json>` accepts a project-relative or absolute local JSON object
+mapping configured canonical source paths to translated Markdown file paths.
+Paths in this object resolve relative to the project. The packaged integrity
+validator applies the same invariants as the repository Japanese-view consumer
+before accepting translations. Invalid mappings or translations fail before
+output publication. REQ/SCN/CASE titles without validated translations fall back
+to canonical English, with `?lang=ja` and `?lang=en` preserved throughout local
+navigation. No API key, AI translation, remote artifact fetch, or automatic
+import of unconfigured Japanese files is required. Validation protects structure
+and machine content, not the semantic accuracy of human translation.

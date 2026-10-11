@@ -1,5 +1,6 @@
 /** The query carries display language through portable report URLs and history. */
 const japanese: Readonly<Record<string, string>> = {
+  "← Quality Overview": "← 品質概要",
   "Moura Requirement Coverage": "Moura 要求カバレッジ",
   "Moura Quality Reports": "Moura 品質レポート",
   "Verification completeness against project requirements.":

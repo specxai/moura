@@ -132,21 +132,37 @@ duplicated, or inconsistent with the authoritative metadata.
 
 ## Requirement Coverage report
 
-After evidence exists, `moura report [directory]` writes `<project>/moura-report/index.html`. The static report consumes the same validated manifest, normalized evidence, and `checkVerification()` result as `moura check`; it does not parse Allure or reproduce pair-status precedence.
+`moura report [directory] [--output <directory>]` generates a static Quality
+Overview at `<output>/index.html`, a Requirement Map at `<output>/moura/index.html`,
+and escaped REQ/Spec snapshots under `<output>/moura/sources/`. It consumes the
+validated project, normalized Evidence, and authoritative verification results
+without running tests. Output defaults to `<project>/moura-report`; relative
+`--output` paths resolve against the project and absolute paths are accepted.
+Both pages can be created even when Evidence or optional external metrics are
+missing. Adapter/semantic diagnostics retain their existing exit behavior.
 
-Requirement IDs in the hierarchy link to an HTML view of the configured
-Requirement Markdown file at the exact heading that declares them. Moura puts
-these escaped, read-only source snapshots under `moura-report/sources/`; their
-content comes from the same validated files used for the report. Bundling the
-views makes heading navigation work from a local `file:` report and when only
-`moura-report/` is published by any static host. The generated links and anchor
-IDs are provider-neutral and do not depend on a repository URL or a hosting
-service's Markdown slug rules. Edit the configured Markdown source, not its
-generated snapshot; the whole `moura-report/` directory is replaced on the
-next run.
+Source links point to exact bundled heading anchors, so navigation works both
+from local `file:` pages and static hosts without provider-specific URLs. Edit
+canonical Markdown, not generated snapshots. The output destination must not
+exist, even as an empty directory. Errors show the output path; remove a previous
+report yourself or choose a new `--output` before regeneration. Moura creates no
+ownership manifest or backup and never updates an existing destination. Private
+staging and exclusive creation preserve competing user data on failure. Protected
+inputs, project/filesystem roots and symlink path components remain prohibited.
+Concurrent malicious mutation is outside the filesystem threat model.
 
-`moura-report/` is generated output owned and managed by Moura. Running `moura report` may delete and recreate the entire directory, so do not place files there that you want to preserve.
-Moura assumes no concurrently malicious process mutates the validated project directory while report output is being recreated; defending against such races is outside its filesystem threat model.
+Overview status uses the same shared authoritative aggregation as Moura's Quality
+Site: required FAIL/BROKEN Evidence has priority; other non-PASS required pairs
+or evaluation/strict traceability problems are INCOMPLETE; complete verification
+without problems is PASS. Optional Allure result counts and coverage-summary
+metrics never override this status. External HTML generation/copying is outside
+v2, and no links to unbundled external reports are emitted.
+
+Local verified Japanese views can be supplied with `--japanese-views <json>`;
+see the [CLI usage and mapping format](../README.md#cli). Every supplied source
+passes the same packaged integrity validator before publication. Missing views
+fall back to English; invalid views fail without changing output. UI language
+and relative navigation retain `?lang=ja` / `?lang=en`.
 
 A required Case × layer pair is covered only when it is `PASS`. A Case is fully verified only when every required layer is `PASS`; a Scenario only when every Case is fully verified; and a Requirement only when every Scenario is fully verified. Project and per-layer counts use the same rule. `FAIL`, `BROKEN`, `SKIPPED`, `UNIMPLEMENTED`, and `MISSING` are distinct gaps, with warning and error severity shown separately.
 

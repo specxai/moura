@@ -51,3 +51,11 @@ Moura shall present Requirement Coverage as a responsive Requirement Map of
 Requirements, Scenarios, Cases, and drill-down Evidence, emphasizing titles from
 canonical Markdown and preserving authoritative verification semantics,
 diagnostics, and the existing report locale and source navigation.
+
+## REQ-010 Generate portable external-project quality reports
+
+The installed Moura package shall generate a Quality Overview, Requirement Map,
+and canonical source snapshots for supported projects, using shared authoritative
+verification semantics, optional external metrics, validated Japanese views,
+and new output creation that protects project inputs and preserves all existing
+output and unrelated files.

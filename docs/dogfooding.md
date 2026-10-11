@@ -9,7 +9,8 @@ user's Allure directory.
 The package artifact smoke is deliberately outside normal Vitest discovery. It
 requires a pack and clean npm install, so the explicit `pnpm test:package`
 command runs it once and writes its successful result to `allure-results` as
-Evidence for `REQ-006/SCN-001/CASE-001` and `CASE-002`. The later production
+Evidence for `REQ-006/SCN-001/CASE-001` and `CASE-002`, plus the
+external-project report boundary `REQ-010/SCN-001/CASE-001`. The later production
 strict check validates and consumes that supplemental Evidence together with
 the dedicated Vitest run. A failed smoke removes its prior result and never
 emits passing Evidence.
@@ -63,6 +64,10 @@ The full-suite reverse audit groups Evidence by the behavior under test:
 | `scripts/registry-smoke.test.ts`          | npm registry release identity                   | unit        |
 | `scripts/generate-japanese-views.test.ts` | safe Japanese-view response handling            | unit        |
 | `scripts/validate-japanese-views.test.ts` | generated-view traceability integrity           | unit        |
+
+`src/report-v2.test.ts` maps its filesystem integration tests separately to
+`REQ-010/SCN-001/CASE-001` (portable output and shared Overview), `CASE-002`
+(output safety), and `CASE-003` (validated Japanese views/fallback).
 
 The separate `scripts/package-smoke.ts` command supplies the integration
 Evidence for the packaged-consumer guarantee; it is not part of the reviewed

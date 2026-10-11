@@ -105,7 +105,8 @@ jobs:
         if: always() && hashFiles('moura-report/index.html') != ''
         run: |
           test -f moura-report/index.html
-          grep -F 'REQ-001/SCN-001/CASE-001' moura-report/index.html
+          grep -F 'Overall Status' moura-report/index.html
+          grep -F 'REQ-001/SCN-001/CASE-001' moura-report/moura/index.html
 
       - name: Upload coverage report
         if: always()

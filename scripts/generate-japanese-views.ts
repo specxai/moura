@@ -20,12 +20,8 @@ interface OpenAIResponse {
   readonly error?: { readonly message?: unknown };
 }
 
-export const GENERATED_VIEW_NOTICE = `> **Generated file — do not edit.** This Japanese view is derived from the corresponding English document in the repository root. The English document is authoritative.
->
-> **生成ファイル — 編集しないでください。** この日本語版はリポジトリ直下の対応する英語文書から生成されています。英語文書が正本です。
-
-`;
-
+export { GENERATED_VIEW_NOTICE } from "../src/japanese-view.js";
+import { GENERATED_VIEW_NOTICE } from "../src/japanese-view.js";
 export async function translateMarkdown(
   markdown: string,
   source: string,

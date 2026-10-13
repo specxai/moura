@@ -99,3 +99,4 @@ requirements:
           - { id: CASE-001, verify: [integration] }
           - { id: CASE-002, verify: [integration] }
           - { id: CASE-003, verify: [integration] }
+          - { id: CASE-004, verify: [integration] }

@@ -34,11 +34,15 @@ import { withReportLocale } from "./report-locale.js";
 import type { Evidence, VerificationLayer } from "./model.js";
 import { qualityOverviewFromEvaluation } from "./quality-overview.js";
 import { renderOverview } from "./overview-report.js";
+import { collectReportAssets } from "./report-assets.js";
 import { writeReportOutput } from "./report-output.js";
 import { validateJapaneseView } from "./japanese-view.js";
 
 export interface ReportCommandOptions extends CheckCommandOptions {
   readonly output?: string;
+  /** Already generated HTML report directories, relative to the project or absolute. */
+  readonly allureReport?: string;
+  readonly coverageReport?: string;
   /** Project-relative JSON mapping canonical source paths to Japanese view paths. */
   readonly japaneseViews?: string;
 }
@@ -183,16 +187,29 @@ export async function reportProjectDirectory(
       "<main>",
       '<main><a href="../index.html" data-ja="← 品質概要">← Quality Overview</a>',
     );
+    const assets = await collectReportAssets(root, {
+      ...(options.allureReport === undefined
+        ? {}
+        : { allure: options.allureReport }),
+      ...(options.coverageReport === undefined
+        ? {}
+        : { coverage: options.coverageReport }),
+    });
     files.set("moura/index.html", map);
     files.set(
       "index.html",
-      renderOverview(await qualityOverviewFromEvaluation(root, evaluation)),
+      renderOverview(
+        await qualityOverviewFromEvaluation(root, evaluation),
+        "",
+        assets.links,
+      ),
     );
     const output = await writeReportOutput(
       root,
       options.output ?? "moura-report",
-      ["moura.yaml", ...sources.keys(), ...translationInputs],
+      ["moura.yaml", ...sources.keys(), ...translationInputs, ...assets.inputs],
       files,
+      assets.files,
     );
     overviewPath = resolve(output, "index.html");
     outputPath = resolve(output, "moura/index.html");

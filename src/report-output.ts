@@ -13,6 +13,8 @@ import {
 } from "node:fs/promises";
 import { dirname, isAbsolute, parse, relative, resolve, sep } from "node:path";
 
+import { stageReportAssets, type ReportAsset } from "./report-assets.js";
+
 function contains(parent: string, child: string): boolean {
   const path = relative(parent, child);
   return (
@@ -54,6 +56,7 @@ export async function writeReportOutput(
   requested: string,
   protectedInputs: readonly string[],
   files: ReadonlyMap<string, string>,
+  assets: readonly ReportAsset[] = [],
 ): Promise<string> {
   if (!requested.trim()) throw new Error("Output directory must not be empty");
   const requestedOutput = resolve(root, requested);
@@ -103,6 +106,28 @@ export async function writeReportOutput(
     )
       throw new Error(`Invalid report file: ${file}`);
   }
+  for (const asset of assets) {
+    if (
+      !/^(allure|coverage)\//u.test(asset.destination) ||
+      asset.destination
+        .split("/")
+        .some(
+          (part) =>
+            !part ||
+            part === "." ||
+            part === ".." ||
+            part.includes("\\") ||
+            part.includes(":"),
+        )
+    )
+      throw new Error(`Invalid report asset: ${asset.destination}`);
+  }
+  const destinations = [
+    ...files.keys(),
+    ...assets.map((asset) => asset.destination),
+  ];
+  if (new Set(destinations).size !== destinations.length)
+    throw new Error("Duplicate report destination");
   await mkdir(dirname(output), { recursive: true });
   await checkParents(dirname(output));
   const stage = await mkdtemp(resolve(dirname(output), ".moura-stage-"));
@@ -127,6 +152,7 @@ export async function writeReportOutput(
         mode: 0o600,
       });
     }
+    await stageReportAssets(stage, assets);
     await checkParents(output);
     await requireAbsent(output);
     try {
@@ -137,14 +163,24 @@ export async function writeReportOutput(
       throw error;
     }
     await remember(output, true);
-    for (const directory of ["moura", "moura/sources"]) {
-      if (![...files.keys()].some((file) => file.startsWith(`${directory}/`)))
-        continue;
+    const directories = new Set<string>();
+    for (const file of destinations) {
+      const parts = file.split("/").slice(0, -1);
+      for (let count = 1; count <= parts.length; count++)
+        directories.add(parts.slice(0, count).join("/"));
+    }
+    for (const directory of [...directories].sort(
+      (a, b) => a.split("/").length - b.split("/").length,
+    )) {
       const path = resolve(output, directory);
       await mkdir(path, { mode: 0o700 });
       await remember(path, true);
     }
-    for (const file of files.keys()) {
+    // Publish the Overview last so interrupted copying has no normal entry point.
+    for (const file of [
+      ...destinations.filter((file) => file !== "index.html"),
+      "index.html",
+    ].filter((file) => destinations.includes(file))) {
       const path = resolve(output, file);
       await copyFile(resolve(stage, file), path, constants.COPYFILE_EXCL);
       await remember(path, false);

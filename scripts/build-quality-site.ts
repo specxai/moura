@@ -1,11 +1,4 @@
-import {
-  cpSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { resolve } from "node:path";
 import { appendFile } from "node:fs/promises";
@@ -16,6 +9,7 @@ import {
   locateSpecificationMarkdown,
 } from "../src/markdown.js";
 import {
+  reportProjectDirectory,
   renderRequirementSource,
   withRequirementMapTranslation,
   requirementSourceFilename,
@@ -32,26 +26,12 @@ import {
 export async function buildQualitySite(root = "."): Promise<void> {
   const path = (entry: string) => resolve(root, entry);
 
-  for (const entry of [
-    "moura-report/index.html",
-    "allure-report/index.html",
-    "coverage/index.html",
-  ]) {
-    readFileSync(path(entry));
-  }
-  rmSync(path("_site"), { recursive: true, force: true });
-  mkdirSync(path("_site"), { recursive: true });
-  cpSync(path("coverage"), path("_site/coverage"), { recursive: true });
-  cpSync(path("allure-report"), path("_site/allure"), { recursive: true });
-  cpSync(
-    path(
-      existsSync(path("moura-report/moura/index.html"))
-        ? "moura-report/moura"
-        : "moura-report",
-    ),
-    path("_site/moura"),
-    { recursive: true },
-  );
+  const result = await reportProjectDirectory(root, {
+    output: "_site",
+    allureReport: "allure-report",
+    coverageReport: "coverage",
+  });
+  if (!result.overviewPath) throw new Error(result.errors.join("\n"));
   const japanese = await readJapaneseViews(root);
   if (japanese.views) {
     const manifest = parseManifest(
@@ -106,14 +86,24 @@ export async function buildQualitySite(root = "."): Promise<void> {
   }
   const sha = process.env.GITHUB_SHA?.slice(0, 7) ?? "local build";
   const overview = await collectQualityOverview(root);
-  writeFileSync(path("_site/index.html"), renderOverview(overview, sha));
+  writeFileSync(
+    path("_site/index.html"),
+    renderOverview(overview, sha, {
+      allure: existsSync(path("_site/allure/index.html")),
+      coverage: existsSync(path("_site/coverage/index.html")),
+    }),
+  );
 }
 
-export function renderOverview(overview: QualityOverview, sha: string): string {
+export function renderOverview(
+  overview: QualityOverview,
+  sha: string,
+  reports = { allure: true, coverage: true },
+): string {
   return renderSharedOverview(overview, sha, {
     requirementMap: "./moura/",
-    allure: "./allure/",
-    coverage: "./coverage/",
+    ...(reports.allure ? { allure: "./allure/" } : {}),
+    ...(reports.coverage ? { coverage: "./coverage/" } : {}),
     source: { url: "https://github.com/specxai/moura", label: "specxai/moura" },
   });
 }

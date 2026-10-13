@@ -184,8 +184,37 @@ shows requirement coverage and missing Evidence, plus optional counts from
 Absent or invalid optional metrics are unavailable. Missing Evidence inputs
 still produce both pages with diagnostics; existing report exit-code behavior
 is preserved. An artifact's creation does not mean verification passed.
-Moura does not generate or copy Allure/coverage HTML reports in v2, and the
-portable report emits no links to those unbundled artifacts.
+Moura imports already generated HTML reports with optional flags:
+
+```sh
+moura report . \
+  --allure-report ./allure-report \
+  --coverage-report ./coverage \
+  --output ./quality-report
+```
+
+Either flag may be used alone. Paths resolve relative to the project root or may
+be absolute. Reports with a non-empty `index.html` are bundled intact under
+`allure/` and `coverage/`, including CSS, JavaScript, images, fonts and data;
+Overview links point to `./allure/` and `./coverage/`. Relative links within each
+report keep their original directory structure. Serve the output with a static
+HTTP server when an external report requires fetch or other browser APIs.
+Links outside the supplied report directory are not rewritten or bundled.
+An existing report directory without a non-empty `index.html` is omitted, with
+no detail link. Missing paths, non-directory inputs and unsafe assets are errors.
+Moura neither runs tests or coverage measurement nor generates external HTML.
+The HTML inputs never change metric sources or status aggregation.
+
+Import only trusted reports: their HTML and scripts are published as supplied.
+Input/output overlap and symlinks (including ancestor components) are rejected.
+Only regular files and directories are accepted; filenames must be portable to
+Windows and POSIX, without reserved names or case collisions. Across both inputs,
+limits are 20,000 entries, 128 MiB per file, 512 MiB total and 64 directory levels.
+Assets are copied into private staging before exclusive output publication;
+copy failures clean up only this invocation's files. No output is deleted or
+replaced. The repository Quality Site uses the same Report API, with SHA, source
+links and validated Japanese presentation added for publication. Its `_site/`
+output also must not already exist.
 
 Use `?lang=ja` or `?lang=en` on any generated page. Titles use canonical English
 unless an explicitly configured Japanese view passes the shared integrity

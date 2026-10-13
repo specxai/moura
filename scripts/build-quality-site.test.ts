@@ -42,6 +42,15 @@ describe("quality site assembly", () => {
   it("stages all reports and links Requirement Coverage first", async () => {
     const directory = await mkdtemp(join(tmpdir(), "moura-quality-site-"));
     try {
+      await writeFile(
+        join(directory, "moura.yaml"),
+        "version: 1\nsources: { requirements: [req.md], specifications: [spec.md] }\nverification: { layers: [unit] }\nrequirements:\n  - id: REQ-001\n    scenarios:\n      - id: SCN-001\n        cases: [{ id: CASE-001, verify: [unit] }]\n",
+      );
+      await writeFile(join(directory, "req.md"), "## REQ-001 Read\n");
+      await writeFile(
+        join(directory, "spec.md"),
+        "## REQ-001\n### SCN-001\n#### CASE-001 Read\n",
+      );
       for (const report of ["moura-report", "allure-report", "coverage"]) {
         await mkdir(join(directory, report));
         await writeFile(join(directory, report, "index.html"), report);
@@ -98,6 +107,7 @@ describe("quality site assembly", () => {
       const f = await japaneseFixture();
       try {
         await fetchJapaneseViews(f.root, f.access);
+        await rm(join(f.root, "_site"), { recursive: true, force: true });
         await buildQualitySite(f.root);
         const stage = join(f.root, "node_modules/.cache/moura-japanese-views");
         if (failure === "missing") await rm(stage, { recursive: true });
@@ -117,6 +127,7 @@ describe("quality site assembly", () => {
             join(stage, "req.md"),
             f.pair.requirements.slice(GENERATED_VIEW_NOTICE.length),
           );
+        await rm(join(f.root, "_site"), { recursive: true, force: true });
         await buildQualitySite(f.root);
         const landing = await readFile(
           join(f.root, "_site/index.html"),
@@ -156,6 +167,7 @@ describe("quality site assembly", () => {
       await rm(join(f.root, "moura-report"), { recursive: true });
       expect((await reportProjectDirectory(f.root)).exitCode).toBe(0);
       expect((await fetchJapaneseViews(f.root, f.access)).views).toBeDefined();
+      await rm(join(f.root, "_site"), { recursive: true, force: true });
       await buildQualitySite(f.root);
       const report = await readFile(
         join(f.root, "_site/moura/index.html"),
@@ -219,6 +231,7 @@ describe("quality site assembly", () => {
         join(f.root, "node_modules/.cache/moura-japanese-views/spec.md"),
         "invalid",
       );
+      await rm(join(f.root, "_site"), { recursive: true, force: true });
       await buildQualitySite(f.root);
       const fallback = await readFile(
         join(
@@ -306,6 +319,7 @@ describe("quality site assembly", () => {
         });
         expect((await reportProjectDirectory(f.root)).exitCode).toBe(0);
         expect(await snapshot()).toEqual(baselineFiles);
+        await rm(join(f.root, "_site"), { recursive: true, force: true });
         await buildQualitySite(f.root);
         const siteReport = await readFile(
           join(f.root, "_site/moura/index.html"),

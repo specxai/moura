@@ -59,3 +59,7 @@ and canonical source snapshots for supported projects, using shared authoritativ
 verification semantics, optional external metrics, validated Japanese views,
 and new output creation that protects project inputs and preserves all existing
 output and unrelated files.
+
+Generated external Allure and coverage HTML may be bundled with their assets,
+without changing authoritative metrics, invoking test tools, or weakening
+create-only publication. The repository Quality Site uses this shared capability.

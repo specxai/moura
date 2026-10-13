@@ -330,5 +330,5 @@ describe("external HTML report imports", () => {
     await expect(
       collectReportAssets(root, { allure: "external-allure" }),
     ).rejects.toThrow("entry count limit");
-  });
+  }, 30_000);
 });

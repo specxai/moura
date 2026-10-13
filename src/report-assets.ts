@@ -35,15 +35,6 @@ async function directories(path: string): Promise<void> {
   }
 }
 
-function portableName(name: string): boolean {
-  return (
-    !/[<>:"/\\|?*]/u.test(name) &&
-    ![...name].some((character) => character.charCodeAt(0) < 32) &&
-    !/[. ]$/u.test(name) &&
-    !/^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/iu.test(name)
-  );
-}
-
 export async function collectReportAssets(
   root: string,
   reports: { readonly allure?: string; readonly coverage?: string },
@@ -65,16 +56,11 @@ export async function collectReportAssets(
       if (depth > reportAssetLimits.depth)
         throw new Error(`Report exceeds directory depth limit: ${directory}`);
       await directories(directory);
-      const names = new Set<string>();
       // Stream enumeration so enormous directories cannot exhaust memory.
       const dir = await opendir(directory);
       for await (const entry of dir) {
         if (++entries > reportAssetLimits.entries)
           throw new Error("Report exceeds entry count limit");
-        const key = entry.name.toLowerCase();
-        if (!portableName(entry.name) || names.has(key))
-          throw new Error(`Non-portable report asset name: ${entry.name}`);
-        names.add(key);
         const source = resolve(directory, entry.name);
         const destination = `${prefix}/${entry.name}`;
         const info = await lstat(source);

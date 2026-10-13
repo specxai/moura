@@ -207,8 +207,10 @@ The HTML inputs never change metric sources or status aggregation.
 
 Import only trusted reports: their HTML and scripts are published as supplied.
 Input/output overlap and symlinks (including ancestor components) are rejected.
-Only regular files and directories are accepted; filenames must be portable to
-Windows and POSIX, without reserved names or case collisions. Across both inputs,
+Only regular files and directories are accepted. Moura preserves filenames and
+does not guarantee filename compatibility across operating systems. Unsupported
+names or destination collisions fail through exclusive filesystem operations;
+Moura does not rename, overwrite or skip assets. Across both inputs,
 limits are 20,000 entries, 128 MiB per file, 512 MiB total and 64 directory levels.
 Assets are copied into private staging before exclusive output publication;
 copy failures clean up only this invocation's files. No output is deleted or

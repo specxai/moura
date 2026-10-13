@@ -109,16 +109,13 @@ export async function writeReportOutput(
   for (const asset of assets) {
     if (
       !/^(allure|coverage)\//u.test(asset.destination) ||
+      !contains(
+        resolve(output, asset.destination.split("/")[0]!),
+        resolve(output, asset.destination),
+      ) ||
       asset.destination
-        .split("/")
-        .some(
-          (part) =>
-            !part ||
-            part === "." ||
-            part === ".." ||
-            part.includes("\\") ||
-            part.includes(":"),
-        )
+        .split(process.platform === "win32" ? /[/\\]/u : "/")
+        .some((part) => !part || part === "." || part === "..")
     )
       throw new Error(`Invalid report asset: ${asset.destination}`);
   }
@@ -126,8 +123,6 @@ export async function writeReportOutput(
     ...files.keys(),
     ...assets.map((asset) => asset.destination),
   ];
-  if (new Set(destinations).size !== destinations.length)
-    throw new Error("Duplicate report destination");
   await mkdir(dirname(output), { recursive: true });
   await checkParents(dirname(output));
   const stage = await mkdtemp(resolve(dirname(output), ".moura-stage-"));

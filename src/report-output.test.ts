@@ -134,7 +134,7 @@ describe("private report publication", () => {
     expect(await readdir(join(output, "moura"))).toEqual(["index.html"]);
     expect(await readdir(root)).toEqual(["report"]);
   });
-  it.each(["staging", "publication"])(
+  it.each(["staging", "publication", "collision"])(
     "cleans imported assets after a mid-copy %s failure and preserves inputs",
     async (phase) => {
       const { root, output } = await fixture();
@@ -156,7 +156,7 @@ describe("private report publication", () => {
             .mockRejectedValueOnce(new Error("asset read failed"));
           return handle;
         });
-      } else {
+      } else if (phase === "publication") {
         vi.mocked(copyFile).mockImplementation(async (...args) => {
           if (String(args[1]).endsWith(join("allure", "index.html")))
             throw new Error("asset publication failed");
@@ -164,10 +164,34 @@ describe("private report publication", () => {
         });
       }
       await expect(
-        writeReportOutput(root, output, assets.inputs, files, assets.files),
-      ).rejects.toThrow(/asset .*failed/u);
+        writeReportOutput(
+          root,
+          output,
+          assets.inputs,
+          files,
+          phase === "collision"
+            ? [...assets.files, ...assets.files]
+            : assets.files,
+        ),
+      ).rejects.toThrow(phase === "collision" ? /EEXIST/u : /asset .*failed/u);
       expect(await readdir(root)).toEqual(["html"]);
       expect(await readFile(join(input, "index.html"), "utf8")).toBe(content);
     },
   );
+  it.each([
+    "allure/../../escape.html",
+    "coverage/../escape.html",
+    "allure/./asset.html",
+    "allure//asset.html",
+    "/escape.html",
+    ...(process.platform === "win32" ? ["allure/..\\..\\escape.html"] : []),
+  ])("rejects asset path traversal %s before staging", async (destination) => {
+    const { root, output } = await fixture();
+    await expect(
+      writeReportOutput(root, output, [], files, [
+        { source: join(root, "input"), destination, size: 0, ino: 0, dev: 0 },
+      ]),
+    ).rejects.toThrow("Invalid report asset");
+    expect(await readdir(root)).toEqual([]);
+  });
 });

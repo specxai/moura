@@ -418,8 +418,11 @@ Moura runs no test, measurement or external HTML generation tools and imposes no
 provider-specific file extension list. The installed npm package and repository
 Quality Site share this import path; publication retains SHA and Japanese views.
 
-Reject input/output overlap, all symlinks including ancestors, special files,
-Windows-reserved or non-portable names and case collisions. Across both inputs,
+Reject input/output overlap, all symlinks including ancestors, special files
+and path traversal. Preserve filenames without case folding, reserved-name or
+special-character compatibility checks. Filename portability is outside Moura’s
+responsibility; unsupported names and collisions fail through exclusive filesystem
+operations, without renaming, overwriting or skipping assets. Across both inputs,
 limit entries to 20,000, file size to 128 MiB, total size to 512 MiB and depth to
 64 levels. Copy regular files with bounded reads to private staging, checking
 file identity and size before opening. Publish exclusively with the Overview

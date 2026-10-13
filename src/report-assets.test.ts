@@ -239,51 +239,29 @@ describe("external HTML report imports", () => {
       await expect(lstat(join(root, "moura-report"))).rejects.toThrow();
     },
   );
-  it.each([
-    "COM0.js",
-    "com0.js",
-    "CoM0.js",
-    "LPT0.html",
-    "lpt0.html",
-    "LpT0.html",
-  ])("imports non-reserved device number zero asset %s", async (name) => {
-    const root = await fixture();
-    await writeFile(join(root, "external-allure", name), "zero device asset");
-    const result = await reportProjectDirectory(root, {
-      allureReport: "external-allure",
-    });
-    expect(result.exitCode, result.errors.join("\n")).toBe(0);
-    expect(
-      await readFile(join(root, "moura-report/allure", name), "utf8"),
-    ).toBe("zero device asset");
-  });
-  it
-    .skipIf(process.platform === "win32")
-    .each([
-      ...["CON", "PRN", "AUX", "NUL"].flatMap((name) => [
-        name,
-        `${name.toLowerCase()}.txt`,
-      ]),
-      ...["COM", "LPT"].flatMap((prefix) =>
-        [..."123456789¹²³"].flatMap((number) => [
-          `${prefix}${number}`,
-          `${prefix.toLowerCase()}${number}.html`,
-        ]),
-      ),
-      "unsafe\\name",
-      "trailing.",
-      "colon:name",
-      "case-collision",
-    ])("rejects non-portable names %s on POSIX as well", async (name) => {
-    const root = await fixture();
-    if (name === "case-collision") {
-      await writeFile(join(root, "external-allure/FILE"), "one");
-      await writeFile(join(root, "external-allure/file"), "two");
-    } else await writeFile(join(root, "external-allure", name), "bad");
-    await expect(
-      collectReportAssets(root, { allure: "external-allure" }),
-    ).rejects.toThrow("Non-portable");
-  });
+  it.skipIf(process.platform === "win32")(
+    "copies host-supported filenames unchanged without portability checks",
+    async () => {
+      const root = await fixture();
+      const names = [
+        "asset.js",
+        "ASSET.js",
+        "name:part.js",
+        "name\\part.js",
+        "CON.js",
+      ];
+      for (const name of names)
+        await writeFile(join(root, "external-allure", name), name);
+      const result = await reportProjectDirectory(root, {
+        allureReport: "external-allure",
+      });
+      expect(result.exitCode, result.errors.join("\n")).toBe(0);
+      for (const name of names)
+        expect(
+          await readFile(join(root, "moura-report/allure", name), "utf8"),
+        ).toBe(name);
+    },
+  );
   it("enforces file size limits without reading oversized content", async () => {
     const root = await fixture();
     const file = await open(join(root, "external-allure/oversized.dat"), "w");

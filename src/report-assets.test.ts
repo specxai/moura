@@ -239,10 +239,37 @@ describe("external HTML report imports", () => {
       await expect(lstat(join(root, "moura-report"))).rejects.toThrow();
     },
   );
+  it.each([
+    "COM0.js",
+    "com0.js",
+    "CoM0.js",
+    "LPT0.html",
+    "lpt0.html",
+    "LpT0.html",
+  ])("imports non-reserved device number zero asset %s", async (name) => {
+    const root = await fixture();
+    await writeFile(join(root, "external-allure", name), "zero device asset");
+    const result = await reportProjectDirectory(root, {
+      allureReport: "external-allure",
+    });
+    expect(result.exitCode, result.errors.join("\n")).toBe(0);
+    expect(
+      await readFile(join(root, "moura-report/allure", name), "utf8"),
+    ).toBe("zero device asset");
+  });
   it
     .skipIf(process.platform === "win32")
     .each([
-      "CON.txt",
+      ...["CON", "PRN", "AUX", "NUL"].flatMap((name) => [
+        name,
+        `${name.toLowerCase()}.txt`,
+      ]),
+      ...["COM", "LPT"].flatMap((prefix) =>
+        [..."123456789¹²³"].flatMap((number) => [
+          `${prefix}${number}`,
+          `${prefix.toLowerCase()}${number}.html`,
+        ]),
+      ),
       "unsafe\\name",
       "trailing.",
       "colon:name",

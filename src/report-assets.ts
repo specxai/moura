@@ -40,7 +40,7 @@ function portableName(name: string): boolean {
     !/[<>:"/\\|?*]/u.test(name) &&
     ![...name].some((character) => character.charCodeAt(0) < 32) &&
     !/[. ]$/u.test(name) &&
-    !/^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(?:\.|$)/iu.test(name)
+    !/^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/iu.test(name)
   );
 }
 

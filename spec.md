@@ -403,3 +403,30 @@ to canonical English, with `?lang=ja` and `?lang=en` preserved throughout local
 navigation. No API key, AI translation, remote artifact fetch, or automatic
 import of unconfigured Japanese files is required. Validation protects structure
 and machine content, not the semantic accuracy of human translation.
+
+#### CASE-004 Import optional external HTML reports without changing metrics
+
+`--allure-report <directory>` and `--coverage-report <directory>` independently
+accept project-relative and absolute input directories. Bundle non-empty
+`index.html` reports under `allure/` and `coverage/`, preserving asset bytes,
+directory structure and internal relative links. Use the shared Overview model
+and renderer to link to `./allure/` and `./coverage/` only for bundled reports.
+Directories without a non-empty entry point are omitted; missing paths and
+non-directory inputs are errors. Counts still come from `allure-results/*-result.json`
+and line coverage from `coverage/coverage-summary.json`; HTML does not affect status.
+Moura runs no test, measurement or external HTML generation tools and imposes no
+provider-specific file extension list. The installed npm package and repository
+Quality Site share this import path; publication retains SHA and Japanese views.
+
+Reject input/output overlap, all symlinks including ancestors, special files
+and path traversal. Preserve filenames without case folding, reserved-name or
+special-character compatibility checks. Filename portability is outside Moura’s
+responsibility; unsupported names and collisions fail through exclusive filesystem
+operations, without renaming, overwriting or skipping assets. Across both inputs,
+limit entries to 20,000, file size to 128 MiB, total size to 512 MiB and depth to
+64 levels. Copy regular files with bounded reads to private staging, checking
+file identity and size before opening. Publish exclusively with the Overview
+last; on failure remove only newly created objects and private staging. Existing
+output and project inputs remain intact on Windows and POSIX. Reports are trusted
+active content, copied without sanitization; outside-directory links are not
+rewritten. Concurrent hostile filesystem mutation remains outside the CLI boundary.

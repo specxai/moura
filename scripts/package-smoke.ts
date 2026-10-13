@@ -182,6 +182,62 @@ export async function runPackageSmoke(): Promise<void> {
     const absolute = join(temporary, "absolute-report");
     run(binary, ["report", example, "--output", absolute], packageDirectory);
     await access(join(absolute, "moura/index.html"));
+    for (const kind of ["allure-html", "coverage-html"]) {
+      await mkdir(join(example, kind, "assets"), { recursive: true });
+      await writeFile(
+        join(example, kind, "index.html"),
+        '<link href="assets/style.css"><script src="assets/app.js"></script><img src="assets/icon.png">',
+      );
+      await writeFile(
+        join(example, kind, "assets/style.css"),
+        "body { color: green }",
+      );
+      await writeFile(
+        join(example, kind, "assets/app.js"),
+        "console.log('report')",
+      );
+      await writeFile(
+        join(example, kind, "assets/icon.png"),
+        Buffer.from([0, 1, 255]),
+      );
+    }
+    run(
+      binary,
+      [
+        "report",
+        example,
+        "--allure-report",
+        "allure-html",
+        "--coverage-report",
+        join(example, "coverage-html"),
+        "--output",
+        "integrated-quality",
+      ],
+      packageDirectory,
+    );
+    const integrated = await readFile(
+      join(example, "integrated-quality/index.html"),
+      "utf8",
+    );
+    assert.match(integrated, /href="\.\/allure\/"/u);
+    assert.match(integrated, /href="\.\/coverage\/"/u);
+    assert.match(integrated, /data-status="PASS"/u);
+    for (const [source, destination] of [
+      ["allure-html", "allure"],
+      ["coverage-html", "coverage"],
+    ])
+      for (const file of [
+        "index.html",
+        "assets/style.css",
+        "assets/app.js",
+        "assets/icon.png",
+      ])
+        assert.deepEqual(
+          await readFile(join(example, source!, file)),
+          await readFile(
+            join(example, "integrated-quality", destination!, file),
+          ),
+        );
     // The packed package deliberately excludes all repository scripts and dev tools.
     const installedRoot = join(
       packageDirectory,

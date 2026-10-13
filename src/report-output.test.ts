@@ -3,6 +3,8 @@ import {
   lstat,
   mkdtemp,
   mkdir,
+  open,
+  readFile,
   readdir,
   rm,
   writeFile,
@@ -10,6 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it as vitestIt, vi } from "vitest";
+import { collectReportAssets } from "./report-assets.js";
 import { writeReportOutput } from "./report-output.js";
 import { mouraEvidenceTest } from "./test-support/moura-evidence.js";
 
@@ -19,6 +22,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
     ...actual,
     writeFile: vi.fn(actual.writeFile),
     copyFile: vi.fn(actual.copyFile),
+    open: vi.fn(actual.open),
   };
 });
 const it = mouraEvidenceTest(
@@ -30,6 +34,7 @@ const roots: string[] = [];
 afterEach(async () => {
   vi.mocked(writeFile).mockRestore();
   vi.mocked(copyFile).mockRestore();
+  vi.mocked(open).mockRestore();
   for (const root of roots.splice(0))
     await rm(root, { recursive: true, force: true });
 });
@@ -117,15 +122,76 @@ describe("private report publication", () => {
       await vi.importActual<typeof import("node:fs/promises")>(
         "node:fs/promises",
       );
+    let competingFile = "";
     vi.mocked(copyFile).mockImplementationOnce(async (...args) => {
-      await actual.writeFile(String(args[1]), "user sentinel");
+      competingFile = String(args[1]);
+      await actual.writeFile(competingFile, "user sentinel");
       return actual.copyFile(...args);
     });
     await expect(writeReportOutput(root, output, [], files)).rejects.toThrow();
-    expect(await actual.readFile(join(output, "index.html"), "utf8")).toBe(
-      "user sentinel",
-    );
-    expect(await readdir(output)).toEqual(["index.html"]);
+    expect(await actual.readFile(competingFile, "utf8")).toBe("user sentinel");
+    expect(await readdir(output)).toEqual(["moura"]);
+    expect(await readdir(join(output, "moura"))).toEqual(["index.html"]);
     expect(await readdir(root)).toEqual(["report"]);
+  });
+  it.each(["staging", "publication", "collision"])(
+    "cleans imported assets after a mid-copy %s failure and preserves inputs",
+    async (phase) => {
+      const { root, output } = await fixture();
+      const input = join(root, "html");
+      await mkdir(input);
+      const content = "x".repeat(128 * 1024);
+      await writeFile(join(input, "index.html"), content);
+      const assets = await collectReportAssets(root, { allure: "html" });
+      const actual =
+        await vi.importActual<typeof import("node:fs/promises")>(
+          "node:fs/promises",
+        );
+      if (phase === "staging") {
+        vi.mocked(open).mockImplementationOnce(async (...args) => {
+          const handle = await actual.open(...args);
+          const read = handle.read.bind(handle);
+          vi.spyOn(handle, "read")
+            .mockImplementationOnce(read)
+            .mockRejectedValueOnce(new Error("asset read failed"));
+          return handle;
+        });
+      } else if (phase === "publication") {
+        vi.mocked(copyFile).mockImplementation(async (...args) => {
+          if (String(args[1]).endsWith(join("allure", "index.html")))
+            throw new Error("asset publication failed");
+          return actual.copyFile(...args);
+        });
+      }
+      await expect(
+        writeReportOutput(
+          root,
+          output,
+          assets.inputs,
+          files,
+          phase === "collision"
+            ? [...assets.files, ...assets.files]
+            : assets.files,
+        ),
+      ).rejects.toThrow(phase === "collision" ? /EEXIST/u : /asset .*failed/u);
+      expect(await readdir(root)).toEqual(["html"]);
+      expect(await readFile(join(input, "index.html"), "utf8")).toBe(content);
+    },
+  );
+  it.each([
+    "allure/../../escape.html",
+    "coverage/../escape.html",
+    "allure/./asset.html",
+    "allure//asset.html",
+    "/escape.html",
+    ...(process.platform === "win32" ? ["allure/..\\..\\escape.html"] : []),
+  ])("rejects asset path traversal %s before staging", async (destination) => {
+    const { root, output } = await fixture();
+    await expect(
+      writeReportOutput(root, output, [], files, [
+        { source: join(root, "input"), destination, size: 0, ino: 0, dev: 0 },
+      ]),
+    ).rejects.toThrow("Invalid report asset");
+    expect(await readdir(root)).toEqual([]);
   });
 });

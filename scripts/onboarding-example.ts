@@ -53,6 +53,20 @@ interface PnpmLockfile {
 
 const packageName = "@specxai/moura";
 
+export async function verifyExampleDependency(
+  project: string,
+  releaseVersion: string,
+): Promise<void> {
+  const packageJson = JSON.parse(
+    await readFile(join(project, "package.json"), "utf8"),
+  ) as ConsumerPackageJson;
+  const dependency = packageJson.devDependencies[packageName];
+  if (dependency !== `^${releaseVersion}`)
+    throw new Error(
+      `Official example must depend on ${packageName}@^${releaseVersion}; found ${dependency ?? "missing"}`,
+    );
+}
+
 export async function verifyRegistryDependency(
   project: string,
   expectedVersion: string,
@@ -209,6 +223,14 @@ export async function runOnboardingExample({
   expectedVersion,
   writeDogfoodingEvidence = true,
 }: OnboardingExampleOptions = {}): Promise<void> {
+  const release = JSON.parse(
+    await readFile(join(root, "package.json"), "utf8"),
+  ) as { version: string };
+  // Check the committed declaration before replacing it with a tarball or exact version.
+  await verifyExampleDependency(
+    join(root, "examples/vitest-minimal"),
+    release.version,
+  );
   await rm(evidencePath, { force: true });
   const temporary = await mkdtemp(join(tmpdir(), "moura-onboarding-"));
   const project = join(temporary, "vitest-minimal");

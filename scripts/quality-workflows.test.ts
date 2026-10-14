@@ -1,4 +1,8 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it as vitestIt } from "vitest";
 import { parse } from "yaml";
@@ -240,5 +244,169 @@ describe("trusted Japanese completion refresh", () => {
         step.run?.includes("fetch-japanese-views.ts"),
       ),
     ).toBe(true);
+  });
+});
+
+describe("staged npm release contract", () => {
+  const release = workflow("publish");
+  const stage = release.jobs.publish!;
+  const verify = release.jobs["registry-smoke"]!;
+  const docs = readFileSync(
+    new URL("../docs/releasing.md", import.meta.url),
+    "utf8",
+  );
+  function runs(
+    job: typeof stage,
+    event: string,
+    ref = "refs/heads/main",
+    repository = "specxai/moura",
+  ): boolean {
+    return Boolean(
+      runInNewContext(
+        job.if!,
+        {
+          github: { event_name: event, ref, repository },
+        },
+        { timeout: 100 },
+      ),
+    );
+  }
+
+  it("stages a release without claiming it is public or running registry smoke", () => {
+    expect(release.on.release).toEqual({ types: ["published"] });
+    expect(runs(stage, "release")).toBe(true);
+    expect(runs(verify, "release")).toBe(false);
+    expect(
+      stage.steps.filter((step) => step.run === "npm stage publish"),
+    ).toHaveLength(1);
+    for (const job of Object.values(release.jobs))
+      for (const step of job.steps)
+        expect(step.run ?? "").not.toMatch(/\bnpm\s+publish\b/u);
+    expect(stage.steps.at(-1)?.run).toContain(
+      "npm registry publication has NOT been verified",
+    );
+  });
+
+  it("keeps verification the manual default, independent of the staging job", () => {
+    const dispatch = release.on.workflow_dispatch as {
+      inputs: Record<string, unknown>;
+    };
+    expect(Object.keys(dispatch.inputs).sort()).toEqual([
+      "dist_tag",
+      "release_version",
+    ]);
+    expect(runs(stage, "workflow_dispatch")).toBe(false);
+    expect(runs(verify, "workflow_dispatch")).toBe(true);
+    expect(verify.needs).toBeUndefined();
+    const smoke = verify.steps.find(
+      (step) => step.name === "Verify the released registry artifact",
+    )!;
+    expect(smoke.run).toBe(
+      'pnpm test:registry -- "$RELEASE_VERSION" "$DIST_TAG"',
+    );
+    expect(verify.steps[0]!.with?.ref).toBe(
+      "refs/tags/v${{ inputs.release_version }}",
+    );
+    expect(verify.steps.at(-1)?.run).toContain(
+      "No npm publication was rolled back",
+    );
+  });
+
+  it("allows staging only from a release event with matching provenance", () => {
+    for (const event of ["workflow_dispatch", "push", "pull_request"])
+      for (const ref of ["refs/heads/main", "refs/tags/v0.2.1"])
+        expect(runs(stage, event, ref)).toBe(false);
+    for (const job of [stage, verify])
+      for (const event of ["release", "workflow_dispatch"])
+        expect(runs(job, event, "refs/tags/v0.2.1", "fork/moura")).toBe(false);
+    expect(stage.steps[0]!.with?.ref).toBe(
+      "${{ github.event.release.tag_name }}",
+    );
+    const metadata = stage.steps.find(
+      (step) => step.name === "Verify release tag matches package version",
+    )!;
+    expect(metadata.run).toContain('"$(git rev-parse HEAD)" != "$GITHUB_SHA"');
+    expect(
+      stage.steps.find(
+        (step) =>
+          step.name === "Refuse to restage an already published version",
+      )?.run,
+    ).toContain('"$status" != 404');
+  });
+
+  it.each([true, false])(
+    "requires the actual release checkout to match provenance (matching=%s)",
+    (matching) => {
+      const root = fileURLToPath(new URL("..", import.meta.url));
+      const temporary = mkdtempSync(join(tmpdir(), "moura-provenance-test-"));
+      try {
+        const version = (
+          JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
+            version: string;
+          }
+        ).version;
+        const sha = execFileSync("git", ["rev-parse", "HEAD"], {
+          cwd: root,
+          encoding: "utf8",
+        }).trim();
+        const script = stage.steps.find(
+          (step) => step.name === "Verify release tag matches package version",
+        )!.run!;
+        const result = spawnSync("bash", ["-e", "-c", script], {
+          cwd: root,
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            RELEASE_TAG: `v${version}`,
+            GITHUB_SHA: matching ? sha : "0".repeat(40),
+            GITHUB_OUTPUT: join(temporary, "output"),
+            GITHUB_STEP_SUMMARY: join(temporary, "summary"),
+          },
+        });
+        expect(result.error).toBeUndefined();
+        expect(result.status).toBe(matching ? 0 : 1);
+        if (!matching)
+          expect(result.stderr).toContain(
+            "does not match the workflow provenance SHA",
+          );
+      } finally {
+        rmSync(temporary, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("preserves OIDC least privilege, tag/version and package checks", () => {
+    expect(stage.permissions).toEqual({
+      contents: "read",
+      "id-token": "write",
+    });
+    expect(verify.permissions).toEqual({ contents: "read" });
+    expect(JSON.stringify(release)).not.toContain("NPM_TOKEN");
+    const scripts = stage.steps.map((step) => step.run ?? "").join("\n");
+    for (const command of [
+      "pnpm install --frozen-lockfile",
+      "pnpm build",
+      "pnpm test:package",
+      "pnpm pack --dry-run",
+    ])
+      expect(scripts).toContain(command);
+    expect(scripts).toContain('"$release_version" != "$package_version"');
+    expect(scripts).toContain("npm@11.15.0");
+    expect(
+      stage.steps.find((step) => step.uses?.startsWith("actions/setup-node@"))
+        ?.with?.["node-version"],
+    ).toBe(24);
+  });
+
+  it("documents normal staging, human approval and manual verification", () => {
+    expect(docs).toContain("`npm stage publish`");
+    expect(docs).toContain("human");
+    expect(docs).toContain("approves formal publication");
+    expect(docs).toContain("-f release_version=X.Y.Z -f dist_tag=latest");
+    expect(docs).toContain("workflow_dispatch` performs verification only");
+    expect(docs).toContain("v0.2.1");
+    expect(docs).toContain("--ref main");
+    expect(docs).toContain("explicit maintainer review and approval");
+    expect(docs).toContain("does not change that run");
   });
 });

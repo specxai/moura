@@ -34,5 +34,6 @@ Merge only after PR CI and the repository-required fresh independent review.
 Before a separately authorized publication, recheck main CI and Pages, ensure
 package and CLI versions match, and confirm npm Trusted Publisher configuration
 for `.github/workflows/publish.yml`. Publishing a GitHub Release triggers npm
-publication; do not use that event merely to preview these notes. Follow
+staging with `npm stage publish`; a human must approve the candidate in npm
+before registry verification. Do not use that event merely to preview these notes. Follow
 [the release procedure](releasing.md).

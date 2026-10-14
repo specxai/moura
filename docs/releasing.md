@@ -1,6 +1,6 @@
 # Releasing Moura
 
-Moura v0.1 uses a deliberately manual release process. Never publish merely
+Moura uses a deliberately manual release process. Never publish merely
 because the checks below pass; npm publication requires explicit maintainer
 authorization.
 
@@ -19,15 +19,22 @@ authorization.
    pnpm test
    pnpm test:coverage
    pnpm test:allure
+   pnpm test:package
+   pnpm test:onboarding
    pnpm report:allure
    node dist/cli.js validate .
    node dist/cli.js check .
    pnpm report:moura
    node dist/cli.js check test/fixtures/passing-project
    pnpm pack --dry-run
-   pnpm test:package
    pnpm quality:site
    ```
+
+   Run `test:package` and `test:onboarding` after `test:allure`: the Allure
+   suite resets its results directory, while those smoke tests add supplemental
+   Evidence required by the repository self-check. Run report generation only
+   with a fresh output path; preserve existing reports and choose another
+   `--output` destination when repeating validation.
 
 4. Inspect the dry-run manifest. It should contain only `dist/`, `README.md`,
    `LICENSE`, and `package.json`; report output, fixtures, and test sources must

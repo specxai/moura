@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -9,12 +9,43 @@ import {
   mouraEvidenceTest,
 } from "../src/test-support/moura-evidence.js";
 
-import { verifyRegistryDependency } from "./onboarding-example.js";
+import {
+  verifyExampleDependency,
+  verifyRegistryDependency,
+} from "./onboarding-example.js";
 import { normalizeDistTag, parseDistTagVersion } from "./registry-smoke.js";
 
 const it = mouraEvidenceTest(vitestIt, ["REQ-006/SCN-001/CASE-002"], "unit");
 
 describe("registry smoke", () => {
+  it("keeps the committed official example aligned with the release version", async () => {
+    const root = join(import.meta.dirname, "..");
+    const release = JSON.parse(
+      await readFile(join(root, "package.json"), "utf8"),
+    ) as { version: string };
+    await expect(
+      verifyExampleDependency(
+        join(root, "examples/vitest-minimal"),
+        release.version,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("rejects a stale example dependency before smoke-test substitution", async () => {
+    const project = await mkdtemp(join(tmpdir(), "moura-example-version-"));
+    try {
+      await writeFile(
+        join(project, "package.json"),
+        JSON.stringify({ devDependencies: { "@specxai/moura": "^0.1.2" } }),
+      );
+      await expect(verifyExampleDependency(project, "0.2.0")).rejects.toThrow(
+        "Official example must depend on @specxai/moura@^0.2.0; found ^0.1.2",
+      );
+    } finally {
+      await rm(project, { recursive: true, force: true });
+    }
+  });
+
   it(
     mouraEvidenceName(
       "recognizes an exact registry dependency and rejects a local link",

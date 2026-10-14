@@ -6,16 +6,8 @@ on:
       - published
   workflow_dispatch:
     inputs:
-      operation:
-        description: Verify an approved npm release, or explicitly stage an existing GitHub Release
-        type: choice
-        required: true
-        default: verify
-        options:
-          - verify
-          - stage-existing-release
       release_version:
-        description: Exact release version (X.Y.Z); verify requires npm approval first
+        description: Exact version already approved and published on npm (X.Y.Z)
         required: true
         type: string
       dist_tag:
@@ -28,33 +20,16 @@ jobs:
   publish:
     if: >-
       github.repository == 'specxai/moura' &&
-      (github.event_name == 'release' ||
-       (github.event_name == 'workflow_dispatch' &&
-        github.ref == 'refs/heads/main' && inputs.operation == 'stage-existing-release'))
+      github.event_name == 'release'
     permissions:
       contents: read
       id-token: write
     runs-on: ubuntu-latest
     steps:
-      - name: Resolve an existing published GitHub Release
-        id: release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || format('v{0}', inputs.release_version) }}
-        run: |
-          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Release tag must have the form vX.Y.Z" >&2
-            exit 1
-          fi
-          gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > "$RUNNER_TEMP/moura-release.json"
-          node -e 'const r = require(process.argv[1]); if (r.draft || r.prerelease || r.tag_name !== process.env.RELEASE_TAG) process.exit(1)' "$RUNNER_TEMP/moura-release.json"
-          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
-
       - name: Check out the released tag
         uses: actions/checkout@v4
         with:
-          ref: refs/tags/${{ steps.release.outputs.tag }}
+          ref: ${{ github.event.release.tag_name }}
 
       - name: Enable Corepack
         run: corepack enable
@@ -76,7 +51,7 @@ jobs:
       - name: Verify release tag matches package version
         id: release-metadata
         env:
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Release tag must have the form vX.Y.Z; received: $RELEASE_TAG" >&2
@@ -87,6 +62,11 @@ jobs:
           release_version="${RELEASE_TAG#v}"
           if [[ "$release_version" != "$package_version" ]]; then
             echo "Release tag version ($release_version) does not match package.json ($package_version)." >&2
+            exit 1
+          fi
+
+          if [[ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]]; then
+            echo "Checked-out release commit does not match the workflow provenance SHA." >&2
             exit 1
           fi
 
@@ -121,13 +101,13 @@ jobs:
       - name: Explain the human approval gate
         run: |
           echo "Package staged only; npm registry publication has NOT been verified." >> "$GITHUB_STEP_SUMMARY"
-          echo "A maintainer must review and approve it in npm, then dispatch this workflow with operation=verify, release_version and dist_tag." >> "$GITHUB_STEP_SUMMARY"
+          echo "A maintainer must review and approve it in npm, then dispatch this workflow with release_version and dist_tag." >> "$GITHUB_STEP_SUMMARY"
 
   registry-smoke:
     name: Post-publish registry and onboarding verification
     if: >-
       github.repository == 'specxai/moura' &&
-      github.event_name == 'workflow_dispatch' && inputs.operation == 'verify'
+      github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
     runs-on: ubuntu-latest

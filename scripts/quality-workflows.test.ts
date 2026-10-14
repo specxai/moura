@@ -1,4 +1,8 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it as vitestIt } from "vitest";
 import { parse } from "yaml";
@@ -254,7 +258,6 @@ describe("staged npm release contract", () => {
   function runs(
     job: typeof stage,
     event: string,
-    operation = "verify",
     ref = "refs/heads/main",
     repository = "specxai/moura",
   ): boolean {
@@ -263,7 +266,6 @@ describe("staged npm release contract", () => {
         job.if!,
         {
           github: { event_name: event, ref, repository },
-          inputs: { operation },
         },
         { timeout: 100 },
       ),
@@ -287,12 +289,11 @@ describe("staged npm release contract", () => {
 
   it("keeps verification the manual default, independent of the staging job", () => {
     const dispatch = release.on.workflow_dispatch as {
-      inputs: Record<string, { default?: string; options?: string[] }>;
+      inputs: Record<string, unknown>;
     };
-    expect(dispatch.inputs.operation?.default).toBe("verify");
-    expect(dispatch.inputs.operation?.options).toEqual([
-      "verify",
-      "stage-existing-release",
+    expect(Object.keys(dispatch.inputs).sort()).toEqual([
+      "dist_tag",
+      "release_version",
     ]);
     expect(runs(stage, "workflow_dispatch")).toBe(false);
     expect(runs(verify, "workflow_dispatch")).toBe(true);
@@ -311,38 +312,20 @@ describe("staged npm release contract", () => {
     );
   });
 
-  it("allows explicit existing-tag recovery only on main and never verifies a staged candidate", () => {
-    expect(runs(stage, "workflow_dispatch", "stage-existing-release")).toBe(
-      true,
+  it("allows staging only from a release event with matching provenance", () => {
+    for (const event of ["workflow_dispatch", "push", "pull_request"])
+      for (const ref of ["refs/heads/main", "refs/tags/v0.2.1"])
+        expect(runs(stage, event, ref)).toBe(false);
+    for (const job of [stage, verify])
+      for (const event of ["release", "workflow_dispatch"])
+        expect(runs(job, event, "refs/tags/v0.2.1", "fork/moura")).toBe(false);
+    expect(stage.steps[0]!.with?.ref).toBe(
+      "${{ github.event.release.tag_name }}",
     );
-    expect(runs(verify, "workflow_dispatch", "stage-existing-release")).toBe(
-      false,
-    );
-    expect(
-      runs(
-        stage,
-        "workflow_dispatch",
-        "stage-existing-release",
-        "refs/tags/v0.2.0",
-      ),
-    ).toBe(false);
-    for (const job of [stage, verify]) {
-      expect(runs(job, "push", "stage-existing-release")).toBe(false);
-      expect(
-        runs(
-          job,
-          "workflow_dispatch",
-          "stage-existing-release",
-          "refs/heads/main",
-          "fork/moura",
-        ),
-      ).toBe(false);
-    }
-    expect(stage.steps[0]!.run).toContain("releases/tags/$RELEASE_TAG");
-    expect(stage.steps[0]!.run).toContain("r.draft || r.prerelease");
-    expect(stage.steps[1]!.with?.ref).toBe(
-      "refs/tags/${{ steps.release.outputs.tag }}",
-    );
+    const metadata = stage.steps.find(
+      (step) => step.name === "Verify release tag matches package version",
+    )!;
+    expect(metadata.run).toContain('"$(git rev-parse HEAD)" != "$GITHUB_SHA"');
     expect(
       stage.steps.find(
         (step) =>
@@ -350,6 +333,47 @@ describe("staged npm release contract", () => {
       )?.run,
     ).toContain('"$status" != 404');
   });
+
+  it.each([true, false])(
+    "requires the actual release checkout to match provenance (matching=%s)",
+    (matching) => {
+      const root = fileURLToPath(new URL("..", import.meta.url));
+      const temporary = mkdtempSync(join(tmpdir(), "moura-provenance-test-"));
+      try {
+        const version = (
+          JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
+            version: string;
+          }
+        ).version;
+        const sha = execFileSync("git", ["rev-parse", "HEAD"], {
+          cwd: root,
+          encoding: "utf8",
+        }).trim();
+        const script = stage.steps.find(
+          (step) => step.name === "Verify release tag matches package version",
+        )!.run!;
+        const result = spawnSync("bash", ["-e", "-c", script], {
+          cwd: root,
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            RELEASE_TAG: `v${version}`,
+            GITHUB_SHA: matching ? sha : "0".repeat(40),
+            GITHUB_OUTPUT: join(temporary, "output"),
+            GITHUB_STEP_SUMMARY: join(temporary, "summary"),
+          },
+        });
+        expect(result.error).toBeUndefined();
+        expect(result.status).toBe(matching ? 0 : 1);
+        if (!matching)
+          expect(result.stderr).toContain(
+            "does not match the workflow provenance SHA",
+          );
+      } finally {
+        rmSync(temporary, { recursive: true, force: true });
+      }
+    },
+  );
 
   it("preserves OIDC least privilege, tag/version and package checks", () => {
     expect(stage.permissions).toEqual({
@@ -374,12 +398,13 @@ describe("staged npm release contract", () => {
     ).toBe(24);
   });
 
-  it("documents the implemented staging, approval, verification and recovery operations", () => {
+  it("documents normal staging, human approval and manual verification", () => {
     expect(docs).toContain("`npm stage publish`");
     expect(docs).toContain("human");
     expect(docs).toContain("approves formal publication");
-    for (const operation of ["verify", "stage-existing-release"])
-      expect(docs).toContain(`-f operation=${operation}`);
+    expect(docs).toContain("-f release_version=X.Y.Z -f dist_tag=latest");
+    expect(docs).toContain("workflow_dispatch` performs verification only");
+    expect(docs).toContain("v0.2.1");
     expect(docs).toContain("--ref main");
     expect(docs).toContain("explicit maintainer review and approval");
     expect(docs).toContain("does not change that run");

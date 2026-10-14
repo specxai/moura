@@ -7,6 +7,11 @@ Do not change the Trusted Publisher to permit direct publication as a workaround
 Changing this release mode requires explicit maintainer review and approval,
 including corresponding workflow, regression-test, and documentation changes.
 
+The failed v0.2.0 release will not be recovered. The next release is a new
+**v0.2.1** from a reviewed commit containing this workflow fix. Leave the old
+tag and GitHub Release unchanged; follow the normal version-update and release
+steps below rather than rerunning its failed publication job.
+
 ## Before release
 
 1. Update `package.json`, the version printed by `src/cli.ts`, and the official
@@ -54,8 +59,9 @@ including corresponding workflow, regression-test, and documentation changes.
 1. Create `vX.Y.Z` on the reviewed, tested commit. Never move an existing release
    tag to repair a workflow. Create and publish its GitHub Release with the
    prepared release notes.
-2. `.github/workflows/publish.yml` checks the published GitHub Release, checks
-   out its existing tag, verifies tag/package version equality, uses Node 24
+2. `.github/workflows/publish.yml` runs only on GitHub Release publication, checks
+   out that release tag, verifies tag/package version equality and that the
+   checked-out commit matches the event SHA used for npm provenance, uses Node 24
    and npm 11.15.0, installs frozen dependencies, builds, tests the installed
    package and inspects package contents. It refuses an already-public version
    (or an indeterminate registry response), then runs **`npm stage publish`**.
@@ -71,16 +77,16 @@ including corresponding workflow, regression-test, and documentation changes.
    ```
 
 5. After approval, manually run **Publish to npm** on **main** with
-   `operation=verify`, exact `release_version=X.Y.Z`, and `dist_tag=latest`:
+   exact `release_version=X.Y.Z` (next: `0.2.1`), and `dist_tag=latest`:
 
    ```sh
    gh workflow run publish.yml --repo specxai/moura --ref main \
-     -f operation=verify -f release_version=X.Y.Z -f dist_tag=latest
+     -f release_version=X.Y.Z -f dist_tag=latest
    ```
 
-   The existing `workflow_dispatch` verification is retained; `verify` is its
-   default operation. Release and staging events never start registry smoke
-   automatically, since human approval may take arbitrarily long.
+   `workflow_dispatch` performs verification only: it cannot stage or publish.
+   Release events never start registry smoke automatically, since human approval
+   may take arbitrarily long.
 
 ## After approval: registry and onboarding verification
 
@@ -94,7 +100,7 @@ For an already-public version the same check can be run locally with
 `pnpm test:registry -- X.Y.Z latest` from its matching tag and Node 24.
 
 A verification failure neither unpublishes nor rolls back anything. Check
-approval, propagation, exact version, dist-tag and logs before retrying `verify`.
+approval, propagation, exact version, dist-tag and logs before retrying verification.
 Do not rerun staging to fix a verification-only failure. For older releases,
 `latest` may point to a newer release: use a tag actually identifying the version;
 do not move `latest` merely to satisfy a historical verification.
@@ -107,14 +113,13 @@ and status **Valid**. Check any configured GitHub Environment requirement matche
 workflow usage; do not introduce an environment or alter npm settings silently.
 Only the staging job has `id-token: write` plus `contents: read`. Registry smoke
 has `contents: read` only. Use OIDC short-lived credentials; do not add an
-`NPM_TOKEN` or another long-lived npm token. The workflow's temporary `GH_TOKEN`
-is GitHub's read-only job token for inspecting the existing GitHub Release.
+`NPM_TOKEN` or another long-lived npm token.
 
 Pages must use **Settings → Pages → Build and deployment → Source → GitHub
 Actions** for the quality-report deployment. Local Japanese-view artifacts are
 optional and not a prerequisite for npm staging.
 
-## Troubleshooting and v0.2.0 recovery
+## Troubleshooting and incident record
 
 ### OIDC permission denied for this action
 
@@ -134,8 +139,8 @@ Environment restriction. Diagnose the actual failed step rather than adding a to
 ### Inspect state before retrying
 
 - Inspect the existing GitHub Release and tag commit, not just main:
-  `gh release view v0.2.0 --repo specxai/moura` and
-  `git rev-parse 'v0.2.0^{commit}'` after fetching tags.
+  `gh release view vX.Y.Z --repo specxai/moura` and
+  `git rev-parse 'vX.Y.Z^{commit}'` after fetching tags.
 - Inspect npm's staged-package management page using an authorized maintainer
   account. Public `npm view` cannot establish whether a private staged candidate
   exists. Record the staged candidate identifier/source and avoid duplicate stages.
@@ -145,54 +150,24 @@ Environment restriction. Diagnose the actual failed step rather than adding a to
   version (404) differs from registry/auth/network failure. Public versions cannot
   be overwritten with different contents; never try to duplicate-publish one.
 
-### Recover the existing v0.2.0 without moving its tag
+### Failed staging or verification
 
-The existing `v0.2.0` tag points to
-`bc9fbfae469c2f0455bada621b186321a788beda` and contains the old direct-publication
-workflow. Re-running its failed release run uses the original workflow revision;
-a fix on main alone does not change that run. Do not delete/recreate the Release,
-move the tag, or change package.json to work around the failure.
-
-After this fix is reviewed, approved and merged, an authorized maintainer can:
-
-1. Recheck that v0.2.0 is not public and inspect staged candidates in npm. If
-   already staged, review and approve that correct candidate instead of restaging.
-   If already public, skip staging and run `verify` only.
-2. Confirm the existing tag still identifies the reviewed commit above, the
-   GitHub Release is published, and the tag's package/CLI/example versions are
-   0.2.0 / 0.2.0 / ^0.2.0. Confirm its CI and package verification evidence.
-3. If no public version or existing staged candidate exists, explicitly dispatch
-   the **fixed workflow on main**, selecting `stage-existing-release`:
-
-   ```sh
-   gh workflow run publish.yml --repo specxai/moura --ref main \
-     -f operation=stage-existing-release -f release_version=0.2.0
-   ```
-
-   This operation is allowed only on main in specxai/moura. Workflow code comes
-   from fixed main; package source comes from the unchanged `refs/tags/v0.2.0`.
-   It requires an existing published, non-prerelease GitHub Release, repeats the
-   tag/version and package checks, refuses a public version and stages using OIDC
-   under the same `publish.yml` Trusted Publisher identity. No tag or Release is
-   written. Inspect the logged checked-out SHA before npm approval.
-
-4. Review/approve the staged 0.2.0 candidate in npm, wait for registry reflection,
-   then dispatch `operation=verify`, `release_version=0.2.0`, `dist_tag=latest`
-   on main. Track its run separately from the original failed release run.
-
-For a normal retry, Actions → Publish to npm → the staging run → Re-run failed
-jobs, or `gh run rerun RUN_ID --failed --repo specxai/moura`, reuses that run's
+Actions → Publish to npm → the relevant run → Re-run failed jobs, or
+`gh run rerun RUN_ID --failed --repo specxai/moura`, reuses that run's original
 workflow revision. Inspect staged/public state first: an ambiguous network
-failure may occur after stage registration. Never rerun the old v0.2.0 release
-job expecting it to pick up main's fix.
+failure may occur after candidate registration. If a correct candidate exists,
+review and approve it in npm instead of registering another candidate. If the
+version is already public, rerun only manual registry verification.
 
-This task has not staged or published 0.2.0, approved an npm candidate, changed
-Trusted Publisher settings, moved tags, or changed the Release. npm's private
-staging state and actual OIDC staging authorization must be checked by a
-maintainer; public registry metadata alone cannot verify them. If the unchanged
-publisher has an additional ref/environment restriction that rejects main
-manual dispatch, stop and report that constraint. Do not change it or move tags.
-An explicitly approved maintainer-operated npm staging session for the same tag
-is an alternative subject to npm account permissions; it is not a tested OIDC
-fallback. If same-tag staging is otherwise impossible, a new reviewed patch
-release/tag is a separate maintainer decision, not an automatic version bump.
+Do not rerun the failed v0.2.0 release job: it contains the direct-publication
+workflow, and a fix on main does not change that run. There is no manual staging
+or old-tag recovery operation. Release v0.2.1 normally from a new reviewed commit.
+A manual workflow dispatched on main must never build an old tag for staging:
+checking out a tag does not change the run's GitHub SHA/ref, so npm provenance
+could advertise a different source commit. The release-only job and SHA equality
+check keep the package source aligned with the release event's provenance.
+
+Do not delete/recreate historical Releases or move tags to repair failures.
+If a new release has an irreparable artifact/workflow defect, stop and obtain
+maintainer approval for a new patch version and tag. Never overwrite a public
+version or add a direct-publication permission/token as a workaround.

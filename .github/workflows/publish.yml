@@ -6,8 +6,16 @@ on:
       - published
   workflow_dispatch:
     inputs:
+      operation:
+        description: Verify an approved npm release, or explicitly stage an existing GitHub Release
+        type: choice
+        required: true
+        default: verify
+        options:
+          - verify
+          - stage-existing-release
       release_version:
-        description: Exact version already approved and published on npm (X.Y.Z)
+        description: Exact release version (X.Y.Z); verify requires npm approval first
         required: true
         type: string
       dist_tag:
@@ -18,19 +26,35 @@ on:
 
 jobs:
   publish:
-    if: github.repository == 'specxai/moura' && github.event_name == 'release'
-    outputs:
-      release_version: ${{ steps.release-metadata.outputs.release_version }}
-      dist_tag: ${{ steps.release-metadata.outputs.dist_tag }}
+    if: >-
+      github.repository == 'specxai/moura' &&
+      (github.event_name == 'release' ||
+       (github.event_name == 'workflow_dispatch' &&
+        github.ref == 'refs/heads/main' && inputs.operation == 'stage-existing-release'))
     permissions:
       contents: read
       id-token: write
     runs-on: ubuntu-latest
     steps:
+      - name: Resolve an existing published GitHub Release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || format('v{0}', inputs.release_version) }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag must have the form vX.Y.Z" >&2
+            exit 1
+          fi
+          gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > "$RUNNER_TEMP/moura-release.json"
+          node -e 'const r = require(process.argv[1]); if (r.draft || r.prerelease || r.tag_name !== process.env.RELEASE_TAG) process.exit(1)' "$RUNNER_TEMP/moura-release.json"
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+
       - name: Check out the released tag
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: refs/tags/${{ steps.release.outputs.tag }}
 
       - name: Enable Corepack
         run: corepack enable
@@ -42,7 +66,7 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
 
-      - name: Install and verify publishing toolchain
+      - name: Install and verify staged publishing toolchain
         run: |
           npm install --global npm@11.15.0
           test "$(npm --version)" = "11.15.0"
@@ -52,7 +76,7 @@ jobs:
       - name: Verify release tag matches package version
         id: release-metadata
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
           if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Release tag must have the form vX.Y.Z; received: $RELEASE_TAG" >&2
@@ -67,7 +91,7 @@ jobs:
           fi
 
           echo "release_version=$release_version" >> "$GITHUB_OUTPUT"
-          echo "dist_tag=latest" >> "$GITHUB_OUTPUT"
+          echo "Staging immutable tag $RELEASE_TAG at $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -81,19 +105,29 @@ jobs:
       - name: Check package contents
         run: pnpm pack --dry-run
 
-      - name: Publish package
+      - name: Refuse to restage an already published version
         env:
-          DIST_TAG: ${{ steps.release-metadata.outputs.dist_tag }}
-        run: npm publish --tag "$DIST_TAG"
+          RELEASE_VERSION: ${{ steps.release-metadata.outputs.release_version }}
+        run: |
+          status="$(curl --silent --show-error --location --connect-timeout 10 --max-time 30 --output "$RUNNER_TEMP/moura-registry.json" --write-out '%{http_code}' "https://registry.npmjs.org/@specxai%2fmoura/$RELEASE_VERSION")"
+          if [[ "$status" != 404 ]]; then
+            echo "Expected an unpublished version (HTTP 404), received HTTP $status; stop and investigate." >&2
+            exit 1
+          fi
+
+      - name: Stage package for human approval
+        run: npm stage publish
+
+      - name: Explain the human approval gate
+        run: |
+          echo "Package staged only; npm registry publication has NOT been verified." >> "$GITHUB_STEP_SUMMARY"
+          echo "A maintainer must review and approve it in npm, then dispatch this workflow with operation=verify, release_version and dist_tag." >> "$GITHUB_STEP_SUMMARY"
 
   registry-smoke:
     name: Post-publish registry and onboarding verification
-    needs: publish
     if: >-
-      always() &&
       github.repository == 'specxai/moura' &&
-      ((github.event_name == 'release' && needs.publish.result == 'success') ||
-      github.event_name == 'workflow_dispatch')
+      github.event_name == 'workflow_dispatch' && inputs.operation == 'verify'
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -101,7 +135,7 @@ jobs:
       - name: Check out the released verification harness
         uses: actions/checkout@v4
         with:
-          ref: refs/tags/v${{ github.event_name == 'release' && needs.publish.outputs.release_version || inputs.release_version }}
+          ref: refs/tags/v${{ inputs.release_version }}
 
       - name: Enable Corepack
         run: corepack enable
@@ -118,15 +152,15 @@ jobs:
 
       - name: Verify the released registry artifact
         env:
-          RELEASE_VERSION: ${{ github.event_name == 'release' && needs.publish.outputs.release_version || inputs.release_version }}
-          DIST_TAG: ${{ github.event_name == 'release' && needs.publish.outputs.dist_tag || inputs.dist_tag }}
+          RELEASE_VERSION: ${{ inputs.release_version }}
+          DIST_TAG: ${{ inputs.dist_tag }}
         run: pnpm test:registry -- "$RELEASE_VERSION" "$DIST_TAG"
 
       - name: Summarize post-publish failure semantics
         if: failure()
         env:
-          RELEASE_VERSION: ${{ github.event_name == 'release' && needs.publish.outputs.release_version || inputs.release_version }}
+          RELEASE_VERSION: ${{ inputs.release_version }}
         run: |
           echo "::error::npm publication of @specxai/moura@$RELEASE_VERSION is not rolled back; post-publish registry/onboarding verification failed."
           echo "## Post-publish verification failed" >> "$GITHUB_STEP_SUMMARY"
-          echo "The npm release already exists, but verification of the released registry artifact failed. Follow up on the published release." >> "$GITHUB_STEP_SUMMARY"
+          echo "Verification failed; confirm npm approval, registry propagation and dist-tag. No npm publication was rolled back." >> "$GITHUB_STEP_SUMMARY"

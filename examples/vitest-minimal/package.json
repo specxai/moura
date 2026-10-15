@@ -10,7 +10,7 @@
     "verify:results": "node scripts/verify-results.mjs"
   },
   "devDependencies": {
-    "@specxai/moura": "^0.2.0",
+    "@specxai/moura": "^0.2.1",
     "allure-js-commons": "3.12.1",
     "allure-vitest": "3.12.1",
     "vitest": "5.0.0"

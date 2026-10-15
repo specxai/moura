@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.2.1 — Staged Publishing recovery
+
+- Restore OIDC `npm stage publish` and the human approval boundary in
+  [PR #113](https://github.com/specxai/moura/pull/113). Only GitHub Release
+  publication stages a candidate; staging success does not mean npm publication.
+- v0.2.0 failed at direct `npm publish --tag latest` with E403 / OIDC permission
+  denied for this action ([run](https://github.com/specxai/moura/actions/runs/38552023048)).
+  Build and package checks succeeded. PR #85 had replaced the working staging
+  command with direct publication, which the staging-only Trusted Publisher did
+  not authorize. Keep the old v0.2.0 tag and GitHub Release unchanged; do not
+  rerun that job or recover the old tag. Prepare v0.2.1 from a new reviewed commit.
+- Require release-tag/package version and checked-out commit/event SHA equality
+  to keep npm provenance aligned with the packaged source. Manual dispatch on
+  main verifies an approved public version only; it cannot stage or publish.
+- Retain exact-version npm onboarding verification after human approval,
+  triggered manually with `release_version=0.2.1` and `dist_tag=latest`.
+- Update package, CLI and official Vitest example versions together. No further
+  runtime/API compatibility changes or dependency upgrades from v0.2.0; users
+  upgrading from public v0.1.2 must follow the Report CLI v2 migration guidance in
+  [the v0.2.1 release notes](docs/release-notes-0.2.1.md).
+
 ## 0.2.0 — Report CLI v2
 
 - `moura report [directory] --output <directory>` accepts project-relative and

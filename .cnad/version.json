@@ -1,9 +1,9 @@
 {
-  "version": "0.3.5",
+  "version": "0.3.6",
   "files": {
     "method/review.md": "09c0f16e3680551085ef40a2a825ead5f33ac1952a0a176616b95e329ddeebfc",
     "method/risk-routing.md": "ac1537d9636bf399349e31de1059fcc2e6140b289923c17f772cfc3d678514b1",
-    "method/strategist.md": "6b2a143dfd8c28b3d70c7a28275e2b391ae54e822e7060b9c8165783b3306eda",
+    "method/strategist.md": "6146490449115cf8e8e09c510d7614ed0550cab211960d4ac90c77c134558873",
     "method/workflow.md": "cbe0b69b967cecba499de61da85b8ef3a6804c774c31a56601760690277ae529"
   }
 }
